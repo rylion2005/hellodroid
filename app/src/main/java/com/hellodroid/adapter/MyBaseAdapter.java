@@ -1,4 +1,4 @@
-package com.hellodroid.Adapter;
+package com.hellodroid.adapter;
 
 
 import android.view.View;
