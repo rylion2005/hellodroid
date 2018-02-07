@@ -20,17 +20,28 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 /*
-** ********************************************************************************
+** *************************************************************************************************
 **
 ** SocketListener
-**   Web socket listener including server and client
+**   This is a p2p socket class.
+**
+**   Default port is defined by SOCKET_PORT, if there is conflict with other port, we will switch to
+**     SOCKET_BACKUP_PORT.
+**
+**   It can take as server socket or client socket by configuring mIsServer.
+**   In default it is a server socket.
+**
+**   There are two sub threads: sender and receiver.
+**     For server socket, only receiver thread is started and running
+**     For client socket, only sender thread are started and running.
+**
 **
 ** USAGE:
-**                                       /-- Sender
-**    Client  <==>  SocketListener <==> |
-**                                       \-- Receiver
+**                 |-- Sender   <--......--> Receiver --|
+**    Client  <==> |                                    | <==> Server
+**                 |-- Receiver <--......-->   Sender --|
 **
-** ********************************************************************************
+** *************************************************************************************************
 */
 public class SocketListener extends Handler {
     public static final String TAG = "SocketListener";
@@ -53,6 +64,8 @@ public class SocketListener extends Handler {
     private final int MESSAGE_HEADER_FILE = 0xF;    // 'F'
     private final int MESSAGE_HEADER_ENDING = 0xE;  // 'E'
     private final int MESSAGE_HEADER_TEST = 0x0;    // 'T'
+    // Server will be ready to send data to client.
+    private final int MESSAGE_HEADER_SEND_READY = 0xB;
 
     // Timer releated
     private final long TIMER_PERIOD = 10 * 1000;
@@ -60,6 +73,9 @@ public class SocketListener extends Handler {
 
     private Context mContext;
     private final List<Handler> mHandlerList = new ArrayList<>();
+
+    private Socket mSocket;
+    private ServerSocket mServerSocket;
 
     private Sender mSender;
     private Thread mSenderThread;
@@ -69,9 +85,8 @@ public class SocketListener extends Handler {
     private TimerTask mTimerTask;
 
     // indicator if this socket is a server socket
-    private boolean mIsServer = false;
+    private boolean mIsServer = true;
     private String mIpAddress;
-    private boolean mNetworkReady = false;
 
 
 /* ============================================================================================== */
@@ -106,14 +121,18 @@ public class SocketListener extends Handler {
     public void becomeAsServer(){
         Log.v(TAG, "becomeAsServer");
         mIsServer = true;
-        restartThreads();
+        stopThread(mSenderThread);
+        restartThread(mReceiverThread);
+
         cancelTimerTask();
     }
 
     public void becomeAsClient(){
         Log.v(TAG, "becomeAsClient");
         mIsServer = false;
-        restartThreads();
+        restartThread(mSenderThread);
+        stopThread(mReceiverThread);
+
         cancelTimerTask();
         restartTimerTask();
     }
@@ -238,17 +257,17 @@ public class SocketListener extends Handler {
 /* ============================================================================================== */
 
 
-    private void restartThreads(){
-        if (!mSenderThread.isInterrupted()) {
-            mSenderThread.interrupt();
+    private void restartThread(Thread thread){
+        if (!thread.isInterrupted()) {
+            thread.interrupt();
         }
+        thread.start();
+    }
 
-        if (!mReceiverThread.isInterrupted()) {
-            mReceiverThread.interrupt();
+    private void stopThread(Thread thread){
+        if (!thread.isInterrupted()) {
+            thread.interrupt();
         }
-
-        mSenderThread.start();
-        mReceiverThread.start();
     }
 
     private void cancelTimerTask(){
@@ -296,6 +315,56 @@ public class SocketListener extends Handler {
             //e.printStackTrace();
         }
         return s;
+    }
+
+    private void prepareSocket2(boolean isServer){
+        Log.v(TAG, "prepareSocket: " + isServer);
+
+        // server to client
+        // server to server
+        // client to server
+        // client to client
+
+        try{
+            if (isServer){
+                if (mServerSocket == null){
+                    mServerSocket = new ServerSocket(SOCKET_PORT);
+                    mServerSocket.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
+                    //mServerSocket.setSoTimeout(THREAD_SLEEP_TIME);
+                    if (mSocket != null) {
+                        // It can be a client socket just before. we must close and free it.
+                        mSocket.close();
+                        mSocket = null;
+                    }
+                    mSocket = mServerSocket.accept();
+                }
+            } else {
+                // if it is a server socket just before, we must close and free it.
+                if (mServerSocket != null){
+                    if (mSocket != null){
+                        mSocket.close();
+                        mSocket = null;
+                    }
+                    mServerSocket.close();
+                    mServerSocket = null;
+                }
+
+                if (mSocket == null) {
+                    setIpAddress("10.10.10.103");
+                    mSocket = new Socket();
+                    SocketAddress a = new InetSocketAddress(mIpAddress, SOCKET_PORT);
+                    if (mSocket != null) {
+                        mSocket.connect(a, THREAD_SLEEP_TIME);
+                        mSocket.setSoTimeout(THREAD_SLEEP_TIME);
+                        mSocket.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
+                        mSocket.setSendBufferSize(SOCKET_BUFFER_BYTES);
+                    }
+                }
+            }
+        }catch (IOException e){
+            Log.e(TAG, "prepareSocket: failed");
+            //e.printStackTrace();
+        }
     }
 
     /*
