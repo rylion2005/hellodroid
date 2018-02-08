@@ -31,7 +31,7 @@ import java.util.TimerTask;
 **   It can take as server socket or client socket by configuring mIsServer.
 **   In default it is a server socket.
 **
-**   There are two sub threads: sender and receiver.
+**   There are three sub threads: sender and receiver.
 **     For server socket, only receiver thread is started and running
 **     For client socket, only sender thread are started and running.
 **
@@ -112,10 +112,6 @@ public class SocketListener extends Handler {
         mSenderThread = new Thread(mSender);
         mReceiver = new Receiver();
         mReceiverThread = new Thread(mReceiver);
-    }
-
-    public void registerHandler(Handler handler){
-        mHandlerList.add(handler);
     }
 
     public void becomeAsServer(){
@@ -324,7 +320,6 @@ public class SocketListener extends Handler {
         // server to server
         // client to server
         // client to client
-
         try{
             if (isServer){
                 if (mServerSocket == null){
@@ -421,10 +416,11 @@ public class SocketListener extends Handler {
             Log.v(TAG, "Receiver: running");
             while (true){
                 try {
-                    Socket s = prepareSocket(mIsServer);
-                    if (s != null) {
-                        read(s);
-                        s.close();
+                    prepareSocket2(mIsServer);
+                    if (mSocket != null) {
+                        read(mSocket);
+                        mSocket.close();
+                        mSocket = null;
                     } else {
                         Thread.sleep(THREAD_SLEEP_TIME);
                     }
@@ -577,6 +573,15 @@ public class SocketListener extends Handler {
                     try {
                         mLock.wait();
                         Log.v(TAG, "sender awake");
+                        prepareSocket2(mIsServer);
+                        if (mSocket != null){
+                            flush(mSocket);
+                            mSocket.close();
+                            mSocket = null;
+                        } else {
+                            Thread.sleep(THREAD_SLEEP_TIME);
+                        }
+                        /*
                         Socket s = prepareSocket(mIsServer);
                         if (s != null) {
                             flush(s);
@@ -584,6 +589,7 @@ public class SocketListener extends Handler {
                         } else {
                             Thread.sleep(THREAD_SLEEP_TIME);
                         }
+                        */
                     } catch (IOException e) {
                         //e.printStackTrace();
                         Log.e(TAG, "Socket failed");
