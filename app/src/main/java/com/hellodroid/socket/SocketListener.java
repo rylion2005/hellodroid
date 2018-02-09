@@ -57,7 +57,7 @@ public class SocketListener extends Handler {
     private final long TIMER_DELAY = 6000;       // 6 seconds
 
     private Context mContext;
-    private IncomingCallBack mIncomingCallBack;
+    private CallBack mCallBack;
 
     // Threads and timer
     private Sender mSender;
@@ -111,8 +111,8 @@ public class SocketListener extends Handler {
         mIpAddress = ip;
     }
 
-    public void registerCallback(IncomingCallBack cb){
-        mIncomingCallBack = cb;
+    public void registerCallback(CallBack cb){
+        mCallBack = cb;
     }
 
     /*
@@ -404,8 +404,8 @@ public class SocketListener extends Handler {
             // TODO:
             Log.v(TAG, "COMMAND: " + command);
 
-            if (mIncomingCallBack != null){
-                mIncomingCallBack.onMessageReceived(command);
+            if (mCallBack != null){
+                mCallBack.onMessageReceived(command);
             }
         }
 
@@ -414,8 +414,8 @@ public class SocketListener extends Handler {
             Log.v(TAG, "handleFile: " + fileName);
             // TODO:
 
-            if (mIncomingCallBack != null){
-                mIncomingCallBack.onFileReceived(fileName);
+            if (mCallBack != null){
+                mCallBack.onFileReceived(fileName);
             }
         }
     }
@@ -552,7 +552,7 @@ public class SocketListener extends Handler {
         }
     }
 
-    public interface IncomingCallBack {
+    public interface CallBack {
         abstract public void onMessageReceived(String text);
         abstract public void onFileReceived(String fileName);
     }
