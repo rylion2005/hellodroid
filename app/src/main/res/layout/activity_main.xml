@@ -23,15 +23,21 @@
         android:text="becomeAsClient"
         android:onClick="scanLan"/>
 
-    <TextView
-        android:id="@+id/TXV_TextContents"
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
-        android:paddingStart="8dp"
         android:scrollbars="vertical"
-        android:maxLines="9999"
-        android:background="#708090"/>
+        android:fillViewport="true">
+        <TextView
+            android:id="@+id/TXV_TextContents"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:paddingStart="8dp"
+            android:scrollbars="vertical"
+            android:maxLines="9999"
+            android:background="#708090"/>
+    </ScrollView>>
 
 </LinearLayout>

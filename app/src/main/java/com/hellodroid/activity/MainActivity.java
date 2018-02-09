@@ -25,12 +25,19 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mTXVContents = findViewById(R.id.TXV_TextContents);
+        mTXVContents.setMovementMethod(null);
     }
 
 /* ============================================================================================== */
 
     public void scanLan(View v){
-        mTXVContents.append(sc.getMyLocalAddress() + " | " + sc.getNetworkAddress() + "\n");
+        //mTXVContents.append(sc.getMyLocalAddress() + " | " + sc.getNetworkAddress() + "\n");
+        mTXVContents.setText("");
+        for (String line : sc.readArp()){
+            if (line != null) {
+                mTXVContents.append(line + "\n");
+            }
+        }
     }
 
 
