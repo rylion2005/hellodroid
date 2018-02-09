@@ -24,10 +24,14 @@
         android:onClick="becomeAsClient"/>
 
     <TextView
-        android:id="@+id/TXV_ShowText"
+        android:id="@+id/TXV_TextContents"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:paddingStart="8dp"
         android:scrollbars="vertical"
-        android:maxLines="9999"/>
+        android:maxLines="9999"
+        android:background="#708090"/>
 
 </LinearLayout>

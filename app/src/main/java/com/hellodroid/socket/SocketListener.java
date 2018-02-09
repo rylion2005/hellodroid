@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.net.Socket;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.TimerTask;
 ** *************************************************************************************************
 **
 ** SocketListener
-**   This is a p2p socket class.
+**   This is a p2p socket class which support one pair of client-server.
 **
 **   Default port is defined by SOCKET_PORT, if there is conflict with other port, we will switch to
 **     SOCKET_BACKUP_PORT.
@@ -35,48 +36,30 @@ import java.util.TimerTask;
 **     For server socket, only receiver thread is started and running
 **     For client socket, only sender thread are started and running.
 **
+**   For client socket, a timer task is used to keep heart-beat connection with server.
 **
 ** USAGE:
-**                 |-- Sender   <--......--> Receiver --|
-**    Client  <==> |                                    | <==> Server
-**                 |-- Receiver <--......-->   Sender --|
+**
+**    Client  <==> |-- Sender   <-- -->   Receiver --| <==> Server
+**
 **
 ** *************************************************************************************************
 */
 public class SocketListener extends Handler {
     public static final String TAG = "SocketListener";
 
-    private static int RESULT_ERROR_UNKOWN = -1;
-    private static int RESULT_SUCCESS = 0;
-
     // socket related
     private final int SOCKET_PORT = 9876;
     private final int SOCKET_BACKUP_PORT = 8765;
-    private final int SOCKET_BUFFER_BYTES = (1 * 1024);
 
-    private final int REQUEST_SEND_BYTES = 0xDA;     // sender message
-    private final int INDICATE_RECEIVE_BYTES = 0xDB; // receiver message
-    private final String BUNDLE_KEY_SEND_MESSAGE = "MessageToSend";
-    private final String BUNDLE_KEY_RECEIVE_MESSAGE = "MessageReceived";
-
-    // Socket Message data header type
-    private final int MESSAGE_HEADER_TEXT = 0xC;    // 'C'
-    private final int MESSAGE_HEADER_FILE = 0xF;    // 'F'
-    private final int MESSAGE_HEADER_ENDING = 0xE;  // 'E'
-    private final int MESSAGE_HEADER_TEST = 0x0;    // 'T'
-    // Server will be ready to send data to client.
-    private final int MESSAGE_HEADER_SEND_READY = 0xB;
-
-    // Timer releated
-    private final long TIMER_PERIOD = 10 * 1000;
-    private final int THREAD_SLEEP_TIME = 10 * 1000;
+    // Timer for heart beat
+    private final long TIMER_PERIOD = 60 * 1000; // 60 seconds
+    private final long TIMER_DELAY = 6000;       // 6 seconds
 
     private Context mContext;
-    private final List<Handler> mHandlerList = new ArrayList<>();
+    private IncomingCallBack mIncomingCallBack;
 
-    private Socket mSocket;
-    private ServerSocket mServerSocket;
-
+    // Threads and timer
     private Sender mSender;
     private Thread mSenderThread;
     private Receiver mReceiver;
@@ -86,55 +69,50 @@ public class SocketListener extends Handler {
 
     // indicator if this socket is a server socket
     private boolean mIsServer = true;
-    private String mIpAddress;
+
+    private String mIpAddress = "10.10.10.103";  // Test host IP
 
 
 /* ============================================================================================== */
 
 
-    /*
-    ** ---------------------------------------------------------------------------
-    ** SocketListener
-    **   Constructor
-    **
-    ** @PARAM context, IN:
-    ** @PARAM handler, IN: handler which notify socket events to client
-    ** @RETURN: None
-    **
-    ** NOTES:
-    **   ......
-    **
-    ** ---------------------------------------------------------------------------
-    */
     public SocketListener(Context context){
         mContext = context;
         mSender = new Sender();
         mSenderThread = new Thread(mSender);
         mReceiver = new Receiver();
         mReceiverThread = new Thread(mReceiver);
+
+        //restartThread(mReceiverThread);
     }
 
     public void becomeAsServer(){
-        Log.v(TAG, "becomeAsServer");
-        mIsServer = true;
-        stopThread(mSenderThread);
-        restartThread(mReceiverThread);
-
-        cancelTimerTask();
+        //if (!mIsServer){
+            Log.v(TAG, "becomeAsServer");
+            mIsServer = true;
+            stopThread(mSenderThread);
+            restartThread(mReceiverThread);
+            stopTimerTask();
+        //}
     }
 
     public void becomeAsClient(){
-        Log.v(TAG, "becomeAsClient");
-        mIsServer = false;
-        restartThread(mSenderThread);
-        stopThread(mReceiverThread);
-
-        cancelTimerTask();
-        restartTimerTask();
+        //if (mIsServer){
+            Log.v(TAG, "becomeAsClient");
+            mIsServer = false;
+            restartThread(mSenderThread);
+            stopThread(mReceiverThread);
+            stopTimerTask();
+            restartTimerTask();
+        //}
     }
 
     public void setIpAddress(String ip){
         mIpAddress = ip;
+    }
+
+    public void registerCallback(IncomingCallBack cb){
+        mIncomingCallBack = cb;
     }
 
     /*
@@ -149,62 +127,43 @@ public class SocketListener extends Handler {
     ** NOTES:
     **   we send file with a state machine
     **
-    **  -----------------     -------------     --------------     -------------------
-    **  | FILE HEAD TAG | ==> | FILE NAME | ==> | FILE BYTES | ==> | FILE ENDING TAG |
-    **  -----------------     -------------     --------------     -------------------
+    **  ------------     -------------     ------------     --------------
+    **  | HEAD TAG | ==> | FILE NAME | ==> | CONTENTS | ==> | ENDING TAG |
+    **  ------------     -------------     ------------     --------------
     **
     ** ---------------------------------------------------------------------------
     */
-    public int sendFile(String fileName){
-
-        int result = RESULT_ERROR_UNKOWN;
-        byte[] bytes;
-        FileInputStream fis;
-
+    public void sendFile(String fileName){
         if ((fileName == null) || (fileName.length() == 0)) {
-            return -1;
+            return;
         }
 
-        // Send TAG for file
-        bytes = new byte[1];
-        bytes[0] = (byte) MESSAGE_HEADER_FILE;
-        mSender.enqueue(bytes, 1);
-
         // send file name
-        bytes = fileName.getBytes();
-        mSender.enqueue(bytes, bytes.length);
+        mSender.enqueue(BytesWrapper.MSG_TYPE_FILE_NAME, fileName.getBytes(), fileName.length());
 
         // send data bytes in file
         try {
-            fis = mContext.openFileInput(fileName);
+            FileInputStream fis = mContext.openFileInput(fileName);
             if (fis.available() > 0) {
                 while (true) {
                     // send bytes
                     if (fis.available() > 0) {
-                        byte[] sendBytes = new byte[SOCKET_BUFFER_BYTES];
-                        int readCounts = fis.read(sendBytes, 0, SOCKET_BUFFER_BYTES);
-                        mSender.enqueue(sendBytes, readCounts);
+                        byte[] sendBytes = new byte[BytesWrapper.MAX_MESSAGE_LENGTH];
+                        int readCounts = fis.read(sendBytes, 0, BytesWrapper.MAX_MESSAGE_LENGTH);
+                        mSender.enqueue(BytesWrapper.MSG_TYPE_FILE_CONTENT, sendBytes, readCounts);
                     } else {
                         // send ending tag
-                        Log.e(TAG, "Send Ending");
-                        bytes = new byte[1];
-                        bytes[0] = (byte) MESSAGE_HEADER_ENDING;
-                        mSender.enqueue(bytes, 1);
+                        mSender.enqueue(BytesWrapper.MSG_TYPE_FILE_ENDING, null, 0);
                         break;
                     }
                 }
-                result = RESULT_SUCCESS;
-            } else {
-                result = RESULT_ERROR_UNKOWN;
             }
             fis.close();
         } catch (IOException e) {
-            result = RESULT_ERROR_UNKOWN;
+            // TODO
         } catch (NullPointerException e) {
-            result = RESULT_ERROR_UNKOWN;
+            // TODO
         }
-
-        return result;
     }
 
     /*
@@ -224,29 +183,12 @@ public class SocketListener extends Handler {
     **
     ** ---------------------------------------------------------------------------
     */
-    public int sendText(String text) {
-        int result = RESULT_ERROR_UNKOWN;
-        byte[] bytes;
-
-        if ((text == null) || (text.length() == 0)) {
-            return RESULT_ERROR_UNKOWN;
+    public void sendText(String text) {
+        try {
+            mSender.enqueue(BytesWrapper.MSG_TYPE_TEXT, text.getBytes(), text.length());
+        } catch (NullPointerException e) {
+            Log.v(TAG, "text has nothing");
         }
-
-        // Send head TAG
-        bytes = new byte[1];
-        bytes[0] = (byte) MESSAGE_HEADER_TEXT;
-        mSender.enqueue(bytes, 1);
-
-        // Send bytes
-        bytes = text.getBytes();
-        mSender.enqueue(bytes, bytes.length);
-
-        // Send ending
-        bytes = new byte[1];
-        bytes[0] = (byte) MESSAGE_HEADER_ENDING;
-        mSender.enqueue(bytes, 1);
-
-        return result;
     }
 
 
@@ -266,7 +208,8 @@ public class SocketListener extends Handler {
         }
     }
 
-    private void cancelTimerTask(){
+
+    private void stopTimerTask(){
         if (mTimerTask != null) {
             mTimerTask.cancel();
             mTimerTask = null;
@@ -281,105 +224,14 @@ public class SocketListener extends Handler {
     private void restartTimerTask(){
         mTimer = new Timer();
         mTimerTask = new HeartBeatTask();
-        mTimer.schedule(mTimerTask, 0, TIMER_PERIOD);
+        mTimer.schedule(mTimerTask, TIMER_DELAY, TIMER_PERIOD);
     }
 
-    private Socket prepareSocket(boolean isServer){
-        Log.v(TAG, "prepareSocket: " + isServer);
-        Socket s = null;
-        try{
-            if (isServer){
-                ServerSocket ss = new ServerSocket(SOCKET_PORT);
-                ss.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
-                //ss.setSoTimeout(THREAD_SLEEP_TIME);
-                s = ss.accept();
-
-                // FIXME: 18-2-7 Here is a fatal issue: who will close this server socket??
-            } else {
-                setIpAddress("10.10.10.103");
-                s = new Socket();
-                SocketAddress a = new InetSocketAddress(mIpAddress, SOCKET_PORT);
-                if (s != null) {
-                    s.connect(a, THREAD_SLEEP_TIME);
-                    s.setSoTimeout(THREAD_SLEEP_TIME);
-                    s.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
-                    s.setSendBufferSize(SOCKET_BUFFER_BYTES);
-                }
-            }
-        }catch (IOException e){
-            Log.e(TAG, "prepareSocket: failed");
-            //e.printStackTrace();
-        }
-        return s;
-    }
-
-    private void prepareSocket2(boolean isServer){
-        Log.v(TAG, "prepareSocket: " + isServer);
-
-        // server to client
-        // server to server
-        // client to server
-        // client to client
-        try{
-            if (isServer){
-                if (mServerSocket == null){
-                    mServerSocket = new ServerSocket(SOCKET_PORT);
-                    mServerSocket.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
-                    //mServerSocket.setSoTimeout(THREAD_SLEEP_TIME);
-                    if (mSocket != null) {
-                        // It can be a client socket just before. we must close and free it.
-                        mSocket.close();
-                        mSocket = null;
-                    }
-                    mSocket = mServerSocket.accept();
-                }
-            } else {
-                // if it is a server socket just before, we must close and free it.
-                if (mServerSocket != null){
-                    if (mSocket != null){
-                        mSocket.close();
-                        mSocket = null;
-                    }
-                    mServerSocket.close();
-                    mServerSocket = null;
-                }
-
-                if (mSocket == null) {
-                    setIpAddress("10.10.10.103");
-                    mSocket = new Socket();
-                    SocketAddress a = new InetSocketAddress(mIpAddress, SOCKET_PORT);
-                    if (mSocket != null) {
-                        mSocket.connect(a, THREAD_SLEEP_TIME);
-                        mSocket.setSoTimeout(THREAD_SLEEP_TIME);
-                        mSocket.setReceiveBufferSize(SOCKET_BUFFER_BYTES);
-                        mSocket.setSendBufferSize(SOCKET_BUFFER_BYTES);
-                    }
-                }
-            }
-        }catch (IOException e){
-            Log.e(TAG, "prepareSocket: failed");
-            //e.printStackTrace();
-        }
-    }
-
-    /*
-    ** ---------------------------------------------------------------------------
-    ** heartBeat
-    **   client socket is used to query server socket in order to keep connection
-    **
-    ** @PARAM : None
-    ** @RETURN: None
-    **
-    ** NOTES:
-    **   ......
-    **
-    ** ---------------------------------------------------------------------------
-    */
     private void heartBeat(){
-        Log.v(TAG, "heart beat ......");
-        byte[] bytes = new byte[1];
-        bytes[0] = (byte) MESSAGE_HEADER_TEST;
-        mSender.enqueue(bytes, 1);
+        Log.v(TAG, "< -- heart beat -- >");
+        final String msg = "Heart Beat";
+        //mSender.enqueue(BytesWrapper.MSG_TYPE_HEART_BEAT, msg.getBytes(), msg.length());
+        mSender.enqueue(BytesWrapper.MSG_TYPE_TEXT, msg.getBytes(), msg.length());
     }
 
 
@@ -390,22 +242,22 @@ public class SocketListener extends Handler {
     **
     ** Receiver
     **   Socket Receive Runnable implementation
+    **   This class is only supported in server side now.
+    **   It receives file and text message from client and do not send back any message.
     **
     ** USAGE:
     **   This receiver receive socket data
     **
     ** ********************************************************************************
     */
-
     class Receiver extends Handler implements Runnable{
 
-        private final int STATE_READY = 0xD11;
-        private final int STATE_WAIT_FILE_NAME = 0xD12;
-        private final int STATE_WAIT_ENDING = 0xD13;
-        private final int STATE_WAIT_TEXT = 0xD14;
-        private final int STATE_TEST = 0xD15;
-
+        private final int MSG_RECEIVE_BYTES = 0xCF;
+        private final int STATE_READY = 0xC0;
+        private final int STATE_WAIT_ENDING = 0xCC;
         private int mState;
+
+        private String mFileName;
 
         public Receiver(){
             mState = STATE_READY;
@@ -413,137 +265,157 @@ public class SocketListener extends Handler {
 
         @Override
         public void run(){
-            Log.v(TAG, "Receiver: running");
+            Log.v(TAG, "::Receiver:: running");
             while (true){
-                try {
-                    prepareSocket2(mIsServer);
-                    if (mSocket != null) {
-                        read(mSocket);
-                        mSocket.close();
-                        mSocket = null;
-                    } else {
-                        Thread.sleep(THREAD_SLEEP_TIME);
-                    }
-                } catch (IOException e) {
-                    Log.v(TAG, "socket fail");
-                    //e.printStackTrace();
-                } catch (InterruptedException e) {
-                    Log.v(TAG, " receiver sleep error");
-                }
+                waitAndRead();
             }
         }
 
         @Override
         public void handleMessage(Message msg) {
-            Log.v(TAG, "handleMessage: " + msg);
-            switch (msg.what){
-                case INDICATE_RECEIVE_BYTES:
-                    Bundle b = msg.getData();
-                    byte[] d = b.getByteArray(BUNDLE_KEY_RECEIVE_MESSAGE);
-                    handleState(d, d.length);
-                    break;
-
-                default:
-                    break;
+            if (msg.what == MSG_RECEIVE_BYTES){
+                int length = msg.arg1;
+                byte[] bytes = msg.getData().getByteArray("ReceivedBytes");
+                ByteBuffer bb = BytesWrapper.fill(bytes, length);
+                handleStateMachine(bb);
             }
         }
 
-        private void read(Socket s){
-            if (s == null){
-                return;
-            }
-            Log.v(TAG, "read socket: " + s);
+        /*
+        ** ---------------------------------------------------------------------------
+        ** read
+        **   read active socket data and enqueue to client thread
+        **
+        ** @PARAM s, IN: active socket
+        ** @RETURN: None
+        **
+        ** NOTES:
+        **   ......
+        **
+        ** ---------------------------------------------------------------------------
+        */
+        private void waitAndRead(){
             try {
+                ServerSocket ss = new ServerSocket(SOCKET_PORT);
+                ss.setReceiveBufferSize(1028);
+                //ss.setSoTimeout(THREAD_SLEEP_TIME);
+                Log.v(TAG, "::Server:: wait client");
+                Socket s = ss.accept();
+                Log.v(TAG, "::Server:: client connected:" + s);
                 InputStream is = s.getInputStream();
                 while (true) {
                     if (is.available() > 0) {
-                        byte[] bytes = new byte[SOCKET_BUFFER_BYTES];
-                        is.read(bytes);
-                        enqueue(bytes, is.available());
+                        Log.v(TAG, "available: " + is.available());
+                        int counts = is.available();
+                        byte[] bytes = new byte[counts];
+                        int length = is.read(bytes);
+                        dispatch(bytes, length);
                     } else {
-                        is.close();
                         break;
                     }
                 }
+                is.close();
+                s.isClosed();
+                ss.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e(TAG, "::Server:: IOException");
             }
         }
 
-        private void enqueue(byte[] bytes, int length){
-            Log.v(TAG, "enqueue: " + length);
-            Message m = new Message();
-            m.what = INDICATE_RECEIVE_BYTES;
+        private void dispatch(byte[] bytes, int length){
+            Message msg = new Message();
+            msg.what = MSG_RECEIVE_BYTES;
+            msg.arg1 = length; // bytes length
             Bundle b = new Bundle(length);
-            b.putByteArray(BUNDLE_KEY_RECEIVE_MESSAGE, bytes);
-            m.setData(b);
-            sendMessage(m);
+            b.putByteArray("ReceivedBytes", bytes); // bytes data
+            msg.setData(b);
+            sendMessage(msg);
         }
 
-        private void handleState(byte[] bs, int len){
-            Log.d(TAG, mState + ", counts: " + len);
-            switch(mState){
+        /*
+        ** ---------------------------------------------------------------------------
+        ** handleState
+        **   receiver state machine center
+        **   It will handle switch state machine and dispatch events to clients
+        **
+        **
+        ** @PARAM bs, IN:
+        ** @PARAM len, IN:
+        ** @RETURN: None
+        **
+        ** NOTES:
+        **   State machine:
+        **
+        **                    |--> FILE NAME --> FILE CONTENTS --> ENDING TAG |
+        **   | HEAD TAG | ==> |                                               | ==> IDLE
+        **                    |-->              TEXT CONTENTS                 |
+        **
+        ** ---------------------------------------------------------------------------
+        */
+        public void handleStateMachine(ByteBuffer buffer){
+            Log.v(TAG, "current: " + mState);
+            buffer.flip();
+            int header = BytesWrapper.unwrapHeader(buffer);
+            switch (mState){
                 case STATE_READY:
-                    if(len == 1){
-                        switch(bs[0]){
-                            case MESSAGE_HEADER_FILE:
-                                Log.e(TAG, "FILE ...");
-                                mState = STATE_WAIT_FILE_NAME;
-                                break;
+                    switch (header){
+                        case BytesWrapper.MSG_TYPE_HEART_BEAT:
+                            Log.v(TAG, "Heart Beat ...");
+                            mState = STATE_READY;
+                            break;
 
-                            case MESSAGE_HEADER_TEXT:
-                                Log.e(TAG, "TEXT ...");
-                                mState = STATE_WAIT_TEXT;
-                                handleCommand(bs, len);
-                                break;
+                        case BytesWrapper.MSG_TYPE_FILE_NAME:
+                            Log.v(TAG, "FILE name ...");
+                            mFileName = new String(BytesWrapper.unwrapContents(buffer));
+                            mState = STATE_WAIT_ENDING;
+                            break;
 
-                            case MESSAGE_HEADER_TEST:
-                                break;
+                        case BytesWrapper.MSG_TYPE_TEXT:
+                            Log.v(TAG, "TEXT ...");
+                            handleCommand(new String(BytesWrapper.unwrapContents(buffer)));
+                            mState = STATE_READY;
+                            break;
 
-                            default:
-                                Log.e(TAG, "Don't know 1st byte!");
-                                break;
-                        }
+                        default:
+                            break;
                     }
-                    break;
-
-                case STATE_WAIT_FILE_NAME:
-                    mState = STATE_WAIT_ENDING;
                     break;
 
                 case STATE_WAIT_ENDING:
-                    if(len > 1){
-                        mState = STATE_WAIT_ENDING;
-                    }
-
-                    if((len == 1) && (bs[0] == MESSAGE_HEADER_ENDING)){
+                    if (header == BytesWrapper.MSG_TYPE_FILE_ENDING){
+                        Log.v(TAG, "file ending");
                         mState = STATE_READY;
+                        handleFile(mFileName);
+                    } else {
+                        Log.v(TAG, "file contents");
+                        // TODO: process file contents
                     }
-                    break;
-
-                case STATE_TEST:
-                    Log.e(TAG, "TEST nothing");
-                    mState = STATE_READY;
                     break;
 
                 default:
                     break;
             }
-            Log.e(TAG, "next state ==> " + mState);
+
+            Log.v(TAG, "next: " + mState);
         }
 
-        private void handleCommand(byte[] bytes, int len){
-            String command = new String(bytes);
+
+        private void handleCommand(String command){
             // TODO:
+            Log.v(TAG, "COMMAND: " + command);
+
+            if (mIncomingCallBack != null){
+                mIncomingCallBack.onMessageReceived(command);
+            }
         }
 
-        private void notifyMessageReceived(byte[] bytes){
-            for (Handler h : mHandlerList){
-                Message msg = new Message();
-                Bundle b = new Bundle();
-                b.putByteArray("BroadcastMessage", bytes);
-                msg.setData(b);
-                h.sendMessage(msg);
+
+        private void handleFile(String fileName){
+            Log.v(TAG, "handleFile: " + fileName);
+            // TODO:
+
+            if (mIncomingCallBack != null){
+                mIncomingCallBack.onFileReceived(fileName);
             }
         }
     }
@@ -560,106 +432,115 @@ public class SocketListener extends Handler {
     **
     ** ********************************************************************************
     */
-    class Sender extends Handler implements Runnable {
+    class Sender implements Runnable {
 
-        private final List<byte[]> mSendQueue = new ArrayList<>();
+        private final List<ByteBuffer> mOutQueue = new ArrayList<>();
+        private final Object mSignal = new Object();
         private final Object mLock = new Object();
 
         @Override
         public void run() {
-            Log.v(TAG, "Sender: running");
+            Log.v(TAG, "::Sender:: running");
             while (true) {
-                synchronized (mLock) {
-                    try {
-                        mLock.wait();
-                        Log.v(TAG, "sender awake");
-                        prepareSocket2(mIsServer);
-                        if (mSocket != null){
-                            flush(mSocket);
-                            mSocket.close();
-                            mSocket = null;
-                        } else {
-                            Thread.sleep(THREAD_SLEEP_TIME);
-                        }
-                        /*
-                        Socket s = prepareSocket(mIsServer);
-                        if (s != null) {
-                            flush(s);
-                            s.close();
-                        } else {
-                            Thread.sleep(THREAD_SLEEP_TIME);
-                        }
-                        */
-                    } catch (IOException e) {
-                        //e.printStackTrace();
-                        Log.e(TAG, "Socket failed");
-                    } catch (InterruptedException e) {
-                        Log.e(TAG, "Synchronized lock exception !!!");
-                        //e.printStackTrace();
+                try {
+                    synchronized (mSignal) {
+                        Log.v(TAG, "::Signal:: wait awake signal ...");
+                        mSignal.wait();
+                        Log.v(TAG, "::Signal:: awake !");
                     }
+
+                    synchronized (mLock) {
+                        flush();
+                    }
+                } catch (InterruptedException e) {
+                    Log.e(TAG, ":Client: InterruptedException");
+                    //e.printStackTrace();
                 }
             }
         }
 
-        @Override
-        public void handleMessage(Message msg) {
-            Log.v(TAG, "handleMessage: " + msg);
-            switch (msg.what){
-                case REQUEST_SEND_BYTES:
-                    Bundle b = msg.getData();
-                    byte[] d = b.getByteArray(BUNDLE_KEY_SEND_MESSAGE);
-                    synchronized (mLock){
-                        mSendQueue.add(d);
-                        Log.v(TAG, "wake up sender");
-                        mLock.notify();
-                    }
-                    break;
+        public void enqueue(int type, byte[] bytes, int length){
+            ByteBuffer bb = BytesWrapper.wrap(type, bytes, length);
+            synchronized (mLock) {
+                mOutQueue.add(bb);
+            }
 
-                default:
-                    break;
+            synchronized (mSignal) {
+                Log.v(TAG, "wake up sender!");
+                mSignal.notify();
             }
         }
 
-        public void enqueue(byte[] bytes, int length){
-            Log.v(TAG, "enqueue: " + length);
-            Message m = new Message();
-            m.what = REQUEST_SEND_BYTES;
-            Bundle b = new Bundle(length);
-            b.putByteArray(BUNDLE_KEY_SEND_MESSAGE, bytes);
-            m.setData(b);
-            sendMessage(m);
-        }
-
-        /*
-        ** ---------------------------------------------------------------------------
-        ** flush
-        **   flush the whole queue to socket
-        **
-        ** @PARAM : None
-        ** @RETURN: None
-        **
-        ** NOTES:
-        **   ......
-        **
-        ** ---------------------------------------------------------------------------
-        */
-        private void flush(Socket s){
-
-            if (s == null){
-                return;
-            }
-
-            Log.v(TAG, "flush socket: " + s);
+        private void flush(){
             try {
-                for (int i = 0; i < mSendQueue.size(); i++) {
+                // we send message one by one !
+                for (ByteBuffer bb : mOutQueue) {
+
+                    bb.flip();
+                    byte[] bytes = new byte[bb.remaining()];
+                    bb.get(bytes);
+
+                    Socket s = new Socket();
+                    SocketAddress a = new InetSocketAddress(mIpAddress, SOCKET_PORT);
+                    s.connect(a, 30000);
+                    s.setSoTimeout(30000);
+                    s.setReceiveBufferSize(BytesWrapper.MAX_MESSAGE_LENGTH);
+                    s.setSendBufferSize(BytesWrapper.MAX_MESSAGE_LENGTH);
+
                     OutputStream os = s.getOutputStream();
-                    os.write(mSendQueue.get(i));
+                    os.write(bytes);
                     os.close();
+                    s.close();
                 }
-                mSendQueue.clear();
-            }catch(IOException e){
-                e.printStackTrace();
+                mOutQueue.clear();
+            } catch (IOException e) {
+                // TODO: here is a connection fail state, we should notify to client.
+                Log.e(TAG, "::Client:: IOException");
             }
+        }
+    }
+
+    static class BytesWrapper{
+        private static final int MESSAGE_HEADER_LENGTH = 4;
+        private static final int MAX_MESSAGE_LENGTH = 1028; // header + contents
+
+        private static final int MSG_TYPE_HEART_BEAT = 0xFF00;
+        private static final int MSG_TYPE_TEXT = 0xFFA0;
+        private static final int MSG_TYPE_FILE_NAME = 0xFFB0;
+        private static final int MSG_TYPE_FILE_CONTENT = 0xFFBA;
+        private static final int MSG_TYPE_FILE_ENDING = 0xFFBB;
+
+        private static ByteBuffer fill(byte[] bytes, int length){
+            ByteBuffer bb = ByteBuffer.allocate(length);
+            bb.put(bytes);
+            return bb;
+        }
+
+        private static ByteBuffer wrap(int type, byte[] bytes, int length){
+            ByteBuffer bb = ByteBuffer.allocate(length + MESSAGE_HEADER_LENGTH);
+
+            // for file content, we do put header
+            if (type != MSG_TYPE_FILE_CONTENT) {
+                bb.putInt(type);
+            }
+
+            if (bytes != null) {
+                bb.put(bytes);
+            }
+            return bb;
+        }
+
+        private static int unwrapHeader(ByteBuffer buffer){
+            return buffer.getInt(0);
+        }
+
+        public static byte[] unwrapContents(ByteBuffer buffer){
+            int length = buffer.limit() - MESSAGE_HEADER_LENGTH;
+            byte[] content = new byte[length];
+            buffer.position(MESSAGE_HEADER_LENGTH);
+            buffer.get(content);
+            buffer.clear();
+            return content;
         }
     }
 
@@ -671,7 +552,8 @@ public class SocketListener extends Handler {
         }
     }
 
-    interface SocketMessageCallBack {
-        abstract public void onMessageReceived(Message message);
+    public interface IncomingCallBack {
+        abstract public void onMessageReceived(String text);
+        abstract public void onFileReceived(String fileName);
     }
 }
