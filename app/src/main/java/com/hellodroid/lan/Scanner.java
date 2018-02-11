@@ -108,7 +108,12 @@ public class Scanner {
 
             int index = 0;
             while ((line = br.readLine()) != null) {
-                strings[index++] = line;
+
+                if (line.contains("00:00:00:00:00:00")){
+                    continue;
+                } else {
+                    strings[index++] = line;
+                }
                 /*
                 try {
                     line = line.trim();
@@ -174,26 +179,25 @@ public class Scanner {
     }
 
     private void discovery(){
-        try {
-            DatagramPacket dp = new DatagramPacket(new byte[0], 0, 0);
-            DatagramSocket socket = new DatagramSocket();
-            int position = 2;
-            while (position < 255) {
-                dp.setAddress(InetAddress.getByName("10.10.10." + String.valueOf(position)));
-                socket.send(dp);
-                position++;
-                if (position == 125) {
+        String addr2 = "10.10.";
+        for (int i = 1; i < 255; i++){
+            String addr3 = addr2 + Integer.toString(i) + ".";
+            for (int j = 0; j < 255; j++){
+                try {
+                    String addr4 = addr3 + Integer.toString(j);
+                    DatagramPacket dp = new DatagramPacket(new byte[0], 0, 0);
+                    DatagramSocket socket = new DatagramSocket();
+                    dp.setAddress(InetAddress.getByName(addr4));
+                    socket.send(dp);
                     socket.close();
-                    socket = new DatagramSocket();
+                } catch (SocketException e) {
+                    // TODO
+                } catch (UnknownHostException e) {
+                    // TODO
+                } catch (IOException e) {
+                    // TODO
                 }
             }
-            socket.close();
-        } catch (SocketException e) {
-            // TODO
-        } catch (UnknownHostException e) {
-            // TODO
-        } catch (IOException e) {
-            // TODO
         }
     }
 
