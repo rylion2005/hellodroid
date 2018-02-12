@@ -8,7 +8,10 @@ import android.widget.TextView;
 import com.hellodroid.R;
 import com.hellodroid.network.MyNetworkReceiver;
 import com.hellodroid.lan.Scanner;
+import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.socket.SocketListener;
+
+import java.nio.ByteBuffer;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -23,6 +26,8 @@ public class MainActivity extends AppCompatActivity {
     private MyNetworkReceiver myReceiver = MyNetworkReceiver.getInstance(this);
     private MyNetworkReceiver.CallBack mNetworkNotification = new NetworkNotification();
 
+    private SocketChanner mSocketChanner = new SocketChanner();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -30,7 +35,6 @@ public class MainActivity extends AppCompatActivity {
 
         mTXVContents = findViewById(R.id.TXV_TextContents);
         mTXVContents.setMovementMethod(null);
-
     }
 
     @Override
@@ -50,14 +54,14 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    /* ============================================================================================== */
+/* ============================================================================================== */
 
     public void scanLan(View v){
         //mTXVContents.append(sc.getMyLocalAddress() + " | " + sc.getNetworkAddress() + "\n");
         mTXVContents.setText("");
-        for (String line : sc.readArp()){
-            if (line != null) {
-                mTXVContents.append(line + "\n");
+        for (String ip : sc.getNeighbours()){
+            if (ip != null) {
+                mTXVContents.append(ip + "\n");
             }
         }
     }
@@ -67,12 +71,16 @@ public class MainActivity extends AppCompatActivity {
 
 
     public void becomeAsServer(View v){
-        sl.becomeAsServer();
-        sl.registerCallback(mCallBack);
+        //sl.becomeAsServer();
+        //sl.registerCallback(mCallBack);
+        mSocketChanner.setNeighbors(sc.getNeighbours());
+        mSocketChanner.start();
+        mSocketChanner.registerCallback(mChcb);
     }
 
     public void becomeAsClient(View v){
-        sl.becomeAsClient();
+        //sl.becomeAsClient();
+        mSocketChanner.sendText("!!!From Client!!!");
     }
 
     class SocketCallback implements SocketListener.CallBack{
@@ -100,5 +108,12 @@ public class MainActivity extends AppCompatActivity {
 
         }
     }
+
+    private SocketChanner.ChannelCallback mChcb = new SocketChanner.ChannelCallback() {
+        @Override
+        public void onReadEvent(ByteBuffer bb) {
+            //mTXVContents.append(bb.toString());
+        }
+    };
 
 }

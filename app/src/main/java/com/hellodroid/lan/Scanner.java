@@ -1,17 +1,10 @@
 package com.hellodroid.lan;
 
 /*
-**
-** ${FILE}
-**   ...
-**
 ** REVISED HISTORY
 **   yl7 | 18-2-9: Created
 **     
 */
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -36,6 +29,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 /*
 ** ********************************************************************************
 **
@@ -50,27 +44,29 @@ import java.util.regex.Pattern;
 public class Scanner {
     private static final String TAG = "Scanner";
 
-    private int mScanPeriod = 60 * 1000; // default 1 minutes
-    private List<String> mAddressList = new ArrayList<>();
-
-    private String myLocalAddress;
+    private static int SCAN_PERIOD = 60 * 1000; // default 1 minutes
     private String myNetworkAddress;
 
 
+/* ********************************************************************************************** */
+
     public Scanner (){
-        Thread t = new Thread(new MyRunnable());
+        Thread t = new Thread(new ScanningRunnable());
         t.start();
     }
 
-    public List<String> getAddressList(){
-        return mAddressList;
+    public ArrayList<String> getNeighbours(){
+        return readArp();
     }
 
-    public String getNetworkAddress(){
+    public String getMyNetworkAddress(){
         return myNetworkAddress;
     }
 
-    public String getMyLocalAddress() {
+
+/* ********************************************************************************************** */
+
+    private String getMyLocalAddress() {
 
         String hostIp = null;
         try {
@@ -92,56 +88,48 @@ public class Scanner {
                 }
             }
         } catch (SocketException e) {
-            e.printStackTrace();
+            //TODO
+            //e.printStackTrace();
         }
         return hostIp;
     }
 
-    public String[] readArp() {
-        String[] strings = new String[1024];
+
+    private ArrayList<String> readArp() {
+        ArrayList<String> ipList = new ArrayList<>();
+
         try {
             BufferedReader br = new BufferedReader(new FileReader("/proc/net/arp"));
             String line = "";
             String ip = "";
             String flag = "";
             String mac = "";
-
-            int index = 0;
             while ((line = br.readLine()) != null) {
-
-                if (line.contains("00:00:00:00:00:00")){
+                if ( (line.length() < 63) || (line.toUpperCase(Locale.US).contains("IP"))  ){
                     continue;
                 } else {
-                    strings[index++] = line;
-                }
-                /*
-                try {
-                    line = line.trim();
-                    if (line.length() < 63) continue;
-                    if (line.toUpperCase(Locale.US).contains("IP")) continue;
-                    ip = line.substring(0, 17).trim();
-                    flag = line.substring(29, 32).trim();
                     mac = line.substring(41, 63).trim();
-                    if (mac.contains("00:00:00:00:00:00")) continue;
-                } catch (Exception e) {
+                    if ( ! mac.contains("00:00:00:00:00:00")) {
+                        //flag = line.substring(29, 32).trim();
+                        ipList.add(line.substring(0, 17).trim());
+                    }
                 }
-                */
             }
             br.close();
-
         } catch(Exception e) {
             //TODO:
         }
-        return strings;
+        return ipList;
     }
 
-    private String getMyNetworkAddress() {
+
+    private String getNetworkAddress() {
         URL infoUrl = null;
         InputStream inStream = null;
         String ipLine = "";
         HttpURLConnection httpConnection = null;
         try {
-//            infoUrl = new URL("http://ip168.com/");
+            // infoUrl = new URL("http://ip168.com/");
             infoUrl = new URL("http://pv.sohu.com/cityjson?ie=utf-8");
             URLConnection connection = infoUrl.openConnection();
             httpConnection = (HttpURLConnection) connection;
@@ -178,16 +166,23 @@ public class Scanner {
         return ipLine;
     }
 
-    private void discovery(){
-        String addr2 = "10.10.";
-        for (int i = 1; i < 255; i++){
-            String addr3 = addr2 + Integer.toString(i) + ".";
+
+    private void discovery(String ip){
+
+        if ((ip == null) || (ip.length() == 0)){
+            return;
+        }
+
+        String ipHead = ip.substring(0, getWhenCount(ip, "\\.", 2));
+
+        for (int i = 0; i < 255; i++){
+            String head3 = ipHead + "." + Integer.toString(i);
             for (int j = 0; j < 255; j++){
                 try {
-                    String addr4 = addr3 + Integer.toString(j);
+                    String address4 = head3 + "." + Integer.toString(j);
                     DatagramPacket dp = new DatagramPacket(new byte[0], 0, 0);
                     DatagramSocket socket = new DatagramSocket();
-                    dp.setAddress(InetAddress.getByName(addr4));
+                    dp.setAddress(InetAddress.getByName(address4));
                     socket.send(dp);
                     socket.close();
                 } catch (SocketException e) {
@@ -201,14 +196,30 @@ public class Scanner {
         }
     }
 
-    class MyRunnable implements Runnable{
+
+    private int getWhenCount(final String line, final String mode, final int count) {
+        Matcher matcher = Pattern.compile(mode).matcher(line);
+        int index = 0;
+        while(matcher.find()) {
+            index++;
+            if(index == count){
+                break;
+            }
+        }
+        return matcher.start();
+    }
+
+
+/* ********************************************************************************************** */
+
+    class ScanningRunnable implements Runnable{
         @Override
         public void run() {
             myNetworkAddress = getMyNetworkAddress();
             while (true) {
-                discovery();
+                discovery(getMyLocalAddress());
                 try {
-                    Thread.sleep(60000);
+                    Thread.sleep(SCAN_PERIOD);
                 } catch (InterruptedException e) {
                     //TODO:
                 }

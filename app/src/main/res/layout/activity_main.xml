@@ -11,7 +11,7 @@
         android:layout_marginTop="16dp"
         android:layout_marginBottom="8dp"
         android:textAllCaps="false"
-        android:text="becomeAsServer"
+        android:text="Server"
         android:onClick="becomeAsServer"/>
 
     <Button
@@ -20,8 +20,8 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
         android:textAllCaps="false"
-        android:text="becomeAsClient"
-        android:onClick="scanLan"/>
+        android:text="Client"
+        android:onClick="becomeAsClient"/>
 
     <ScrollView
         android:layout_width="match_parent"

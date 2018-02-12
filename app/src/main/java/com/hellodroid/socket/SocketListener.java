@@ -24,7 +24,7 @@ import java.util.TimerTask;
 ** *************************************************************************************************
 **
 ** SocketListener
-**   This is a p2p socket class which support one pair of client-server.
+**   This is a p2p socket class which support one pair of client-server with short connection.
 **
 **   Default port is defined by SOCKET_PORT, if there is conflict with other port, we will switch to
 **     SOCKET_BACKUP_PORT.
