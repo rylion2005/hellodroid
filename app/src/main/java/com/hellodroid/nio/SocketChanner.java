@@ -195,35 +195,53 @@ public class SocketChanner extends Handler {
                 ServerSocketChannel ssc = ServerSocketChannel.open();
                 ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
                 ssc.configureBlocking(false);
-                ssc.register(mAcceptSelector, SelectionKey.OP_ACCEPT);
-
-                while (true) {
-                    doAccept(ssc);
+                SelectionKey key = ssc.register(mAcceptSelector, SelectionKey.OP_ACCEPT);
+                Log.v(TAG, ":Accept: registered key=" + key.toString());
+                while (true) {  // always accept client
+                    doAccept();
                 }
-
             } catch (IOException e){
                 e.printStackTrace();
             }
         }
 
-        private void doAccept(ServerSocketChannel ssc){
-            //Log.v(TAG, "doAccept");
+        private void doAccept(){
+            Log.v(TAG, "doAccept");
             try {
-                int num = mAcceptSelector.select();
-                //Log.v(TAG, ":Accept: keys = " + num);
-                Set<SelectionKey> keys = mAcceptSelector.selectedKeys();
-                for (SelectionKey sk : keys) {
-                    if (sk.isValid() && sk.isAcceptable()) {
-                        SocketChannel sc = ssc.accept();
-                        if (sc!=null) {
-                            Log.v(TAG, ":Accept: connected to " + sc.socket().toString());
-                            ReadRunnable rr = new ReadRunnable(sc);
-                            mReadRunnableList.add(rr); //TODO: lock
-                            sendEmptyMessage(MESSAGE_INCOMING);
-                        }
-                    }
-                    sk.cancel();
+
+                int numOfKeys = mAcceptSelector.select(1000); // block
+                if (numOfKeys == 0){
+                    return;
                 }
+
+                Log.v(TAG, ":Accept: num Of Keys = " + numOfKeys);
+                Set<SelectionKey> selectionKeySet = mAcceptSelector.selectedKeys();
+                Log.v(TAG, ":Accept: selectedKeys=" + selectionKeySet.size());
+                for (SelectionKey sk : selectionKeySet) {
+                    if (sk.isValid() && sk.isAcceptable()) {
+                        ServerSocketChannel ssch = (ServerSocketChannel) sk.channel();
+                        SocketChannel sc = ssch.accept();
+                        if (sc != null) {
+                            if ( !hasReadRunnable(sc) ) {
+                                Log.v(TAG, ":Accept: !!! accept from " + sc.socket().toString());
+                                ReadRunnable rr = new ReadRunnable(sc); // save sc to runnable
+                                mReadRunnableList.add(rr); //TODO: lock, add to runnable queue
+                                sendEmptyMessage(MESSAGE_INCOMING);
+
+                                /*
+                                ** TODO:
+                                 *  here we do not close socket channel.
+                                 *  otherwise the socket channel saved in mReadRunnableList will be set null!
+                                */
+                                //sc.close();
+                            }
+                        }
+                        sk.cancel(); //key has been processed, we must cancel it
+                    } else {
+                        Log.v(TAG, ":Accept: why are you here?");
+                    }
+                }
+                selectionKeySet.clear(); // clear key set
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -232,12 +250,16 @@ public class SocketChanner extends Handler {
         private boolean hasReadRunnable(SocketChannel sc){
             boolean has = false;
             for ( ReadRunnable rr : mReadRunnableList ) {
-                String host = rr.getSocketChannel().socket().getRemoteSocketAddress().toString();
-                String newHost = sc.socket().getRemoteSocketAddress().toString();
-                if (host.equals(newHost)){
-                    Log.v(TAG, "find a same ReadRunnable");
-                    has = true;
-                    break;
+                try {
+                    String host = rr.getSocketChannel().socket().getInetAddress().toString();
+                    String newHost = sc.socket().getInetAddress().toString();
+                    if (host.equals(newHost)) {
+                        //Log.v(TAG, "find a same ReadRunnable");
+                        has = true;
+                        break;
+                    }
+                } catch (NullPointerException e) {
+                    //sometimes getRemoteSocketAddress is null when socket disconnects
                 }
             }
             return has;
@@ -261,29 +283,34 @@ public class SocketChanner extends Handler {
         @Override
         public void run() {
             Log.v(TAG, ":READ: running");
-            while (true) {
+            //while (true) {
                 doRead();
-            }
+            //}
         }
 
         private void doRead(){
             Log.v(TAG, "doRead");
             try {
-                int num = mReadSelector.select();
-                Log.v(TAG, "read keys: " + num);
-                Set<SelectionKey> keys = mReadSelector.selectedKeys();
-                Log.v(TAG, "keyset : " + keys.size());
-                for (SelectionKey sk : keys){
+                int numOfKeys = mReadSelector.select(1000);
+                if (numOfKeys == 0){
+                    return;
+                }
+                Log.v(TAG, ":Read: numOfKeys: " + numOfKeys);
+                Set<SelectionKey> selectionKeySet = mReadSelector.selectedKeys();
+                Log.v(TAG, ":read: SelectionKeySet=" + selectionKeySet.size());
+                for (SelectionKey sk : selectionKeySet) {
                     if (sk.isValid() && sk.isReadable()) {
                         SocketChannel sc = (SocketChannel) sk.channel();
-                        Log.v(TAG, "read channel: " + sc.socket().toString());
+                        Log.v(TAG, ":read: channel: " + sc.socket().toString());
                         ByteBuffer bb = ByteBuffer.allocate(BUFFER_BYTES);
                         int count = sc.read(bb);
                         enqueueIncomings(bb);
-                        bb.clear();
-                        sk.cancel();
+                        bb.clear();  // clear byte buffer
+                        sk.cancel(); // key has been processed, cancel selected key
+                        sc.close();  // TODO: Here we must close socket channel
                     }
                 }
+                selectionKeySet.clear(); // clear whole set
             } catch (IOException e){
                 e.printStackTrace();
             }
@@ -300,51 +327,47 @@ public class SocketChanner extends Handler {
         public void run() {
             Log.v(TAG, ":Connect: running");
             while (true) {
-                try {
-                    doConnect();
-                    Thread.sleep(6000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                // try to connect all neighbors
+                for (String ip : mNeighborList){
+                    doConnect(ip);
                 }
             }
         }
 
-        private void doConnect(){
-            //Log.v(TAG, "doConnect: " + mNeighborList.size());
-            // try to connect all possible neighbors
-            for (String ip : mNeighborList){
-                try {
-                    SocketChannel sc = SocketChannel.open();
-                    sc.configureBlocking(false);
-                    sc.connect(new InetSocketAddress(ip, SOCKET_PORT));
-                    sc.register(mConnectSelector, SelectionKey.OP_CONNECT);
-
-                    //Log.v(TAG, ":Connect: connecting server");
-                    int num = mConnectSelector.select(1000);
-                    if (num > 0) {
-                        //Log.v(TAG, ":Connect: connected = " + num);
-                        Set<SelectionKey> keys = mConnectSelector.selectedKeys();
-                        //Log.v(TAG, "SelectionKey Set: " + keys.size());
-                        for (SelectionKey sk : keys) {
-                            if (sk.isValid() && sk.isConnectable()) {
-                                SocketChannel ch = (SocketChannel) sk.channel();
-                                if (ch.finishConnect()) {
-                                    if (!hasWriteRunnable(ch)) {
-                                        Log.v(TAG, ":connect: !!! connected to " + ch.socket().toString());
-                                        WriteRunnable wr = new WriteRunnable(ch);
-                                        mWriteRunnableList.add(wr); // TODO: add lock or synchronized
-                                    }
-                                }
-                                sk.cancel();
+        private void doConnect(String ip){
+            Log.v(TAG, "doConnect: " + ip);
+            try {
+                SocketChannel sc = SocketChannel.open();
+                sc.configureBlocking(false);  // Here MUST be before the connect!!!!!!
+                sc.connect(new InetSocketAddress(ip, SOCKET_PORT));
+                sc.register(mConnectSelector, SelectionKey.OP_CONNECT);
+                int numOfKeys = mConnectSelector.select(600);
+                if (numOfKeys == 0) {
+                    sc.close();
+                    return;
+                }
+                Log.v(TAG, ":Connect: numOfKeys=" + numOfKeys);
+                Set<SelectionKey> selectionKeySet = mConnectSelector.selectedKeys();
+                Log.v(TAG, ":Connect: SelectionKeySet=" + selectionKeySet.size());
+                for (SelectionKey sk : selectionKeySet) {
+                    if (sk.isValid() && sk.isConnectable()) {
+                        SocketChannel ch = (SocketChannel) sk.channel();
+                        if (ch.finishConnect()) {
+                            if ( !hasWriteRunnable(ch) ) {
+                                Log.v(TAG, ":Connect: !!! connected to " + ch.socket().toString());
+                                WriteRunnable wr = new WriteRunnable(ch);
+                                mWriteRunnableList.add(wr); // TODO: add lock or synchronized
                             }
                         }
                     }
-                } catch (IOException e) {
-                    //Log.v(TAG, ":Connect: IOException");
-                    //e.printStackTrace();
+                    sk.cancel();  // key be processed, it must be cancelled.
                 }
+                selectionKeySet.clear();
+                //sc.close(); // TODO: we can must close socket channel
+            } catch (IOException e) {
+                //Log.v(TAG, ":Connect: IOException");
+                //e.printStackTrace();
             }
-            // TODO: mNeighborList.clear();
         }
 
         private boolean hasWriteRunnable(SocketChannel sc){
@@ -353,7 +376,7 @@ public class SocketChanner extends Handler {
                 String host = wr.getSocketChannel().socket().getRemoteSocketAddress().toString();
                 String newHost = sc.socket().getRemoteSocketAddress().toString();
                 if (host.equals(newHost)){
-                    //Log.v(TAG, "find a same WriteRunnable");
+                    Log.v(TAG, "find a same WriteRunnable");
                     has = true;
                     break;
                 }
@@ -393,10 +416,14 @@ public class SocketChanner extends Handler {
         private void doWrite(){
             Log.v(TAG, ":Write: doWrite");
             try {
-                int num = mWriteSelector.select(200);
-                Set<SelectionKey> keys = mWriteSelector.selectedKeys();
-                for (SelectionKey sk : keys){
-                    if (sk.isWritable()) {
+                int numOfKeys = mWriteSelector.select(1000);
+                if (numOfKeys == 0){
+                    return;
+                }
+
+                Set<SelectionKey> selectionKeySet = mWriteSelector.selectedKeys();
+                for (SelectionKey sk : selectionKeySet){
+                    if (sk.isValid() && sk.isWritable()) {
                         SocketChannel sc = (SocketChannel) sk.channel();
                         Log.v(TAG, "Channel: " + sc.socket().toString());
                         Log.v(TAG, "Buffer: " + mBufferQueue.size());
@@ -409,8 +436,9 @@ public class SocketChanner extends Handler {
                             }
                         }
                         mBufferQueue.clear();
-                        sk.cancel();
+                        // sc.close(); // TODO: if we must close it???
                     }
+                    sk.cancel();
                 }
             } catch (IOException e){
                 e.printStackTrace();
