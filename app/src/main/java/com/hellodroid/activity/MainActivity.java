@@ -1,32 +1,37 @@
 package com.hellodroid.activity;
 
 
+import android.content.ContentResolver;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import com.hellodroid.R;
+import com.hellodroid.file.Utils;
 import com.hellodroid.network.MyNetworkReceiver;
 import com.hellodroid.lan.Scanner;
 import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.socket.SocketListener;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
 
     private TextView mTXVContents;
 
-    private final SocketListener sl = new SocketListener(this);
-    private final SocketListener.CallBack mCallBack = new SocketCallback();
-
-    private Scanner sc = new Scanner();
-
-    private MyNetworkReceiver myReceiver = MyNetworkReceiver.getInstance(this);
-    private MyNetworkReceiver.CallBack mNetworkNotification = new NetworkNotification();
-
-    private SocketChanner mSocketChanner = new SocketChanner();
+    private SocketListener mSocketListener;
+    private MyNetworkReceiver myReceiver;
+    private Scanner mLanScanner;
+    private SocketChanner mSocketChanner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,12 +40,14 @@ public class MainActivity extends AppCompatActivity {
 
         mTXVContents = findViewById(R.id.TXV_TextContents);
         mTXVContents.setMovementMethod(null);
+
+        init();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        myReceiver.register(mNetworkNotification);
+        myReceiver.register(new NetworkCallback());
     }
 
     @Override
@@ -54,12 +61,62 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-/* ============================================================================================== */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.v(TAG, "onActivityResult: " + requestCode + ", " + resultCode + ", " + data.toString());
+        switch (requestCode) {
+            case 0xCE:
+                if ((resultCode == RESULT_OK) && (data != null)){
+                    Uri uri = data.getData();
+                    Log.v(TAG, "uri: " + uri.toString());
+                    String pathname = Utils.getFileWithPath(this, uri);
+                    String path = Utils.getPath(this, uri);
+                    String name = Utils.getFileName(this, uri);
+                    Log.v(TAG, "PathName: " + pathname);
+                    Log.v(TAG, "Path: " + path);
+                    Log.v(TAG, "Name: " + name);
+                    mSocketChanner.sendFile(pathname);
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /* ============================================================================================== */
+
+    public void becomeAsServer(View v){
+        //sl.becomeAsServer();
+        //sl.registerCallback(mCallBack);
+
+        // socket channer
+        mSocketChanner.setNeighbors(mLanScanner.getNeighbours());
+        mSocketChanner.start();
+        mSocketChanner.registerCallback(new ChannerCallback());
+    }
+
+    public void becomeAsClient(View v){
+        //sl.becomeAsClient();
+
+        // socket chnner
+        mSocketChanner.sendText("!!!From Client!!!");
+    }
+
+    public void selectFile(View v){
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        //intent.setType(“image/*”);//选择图片
+        //intent.setType(“audio/*”); //选择音频
+        //intent.setType(“video/*”); //选择视频 （mp4 3gp 是android支持的视频格式）
+        //intent.setType(“video/*;image/*”);//同时选择视频和图片
+        intent.setType("*/*"); //设置类型，我这里是任意类型，任意后缀的可以这样写。
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent,0xCE);
+    }
 
     public void scanLan(View v){
-        //mTXVContents.append(sc.getMyLocalAddress() + " | " + sc.getNetworkAddress() + "\n");
         mTXVContents.setText("");
-        for (String ip : sc.getNeighbours()){
+        for (String ip : mLanScanner.getNeighbours()){
             if (ip != null) {
                 mTXVContents.append(ip + "\n");
             }
@@ -69,19 +126,19 @@ public class MainActivity extends AppCompatActivity {
 
 /* ============================================================================================== */
 
+    private void init(){
+        mSocketListener = new SocketListener(this);
+        //mListenerCallBack = new SocketCallback();
 
-    public void becomeAsServer(View v){
-        //sl.becomeAsServer();
-        //sl.registerCallback(mCallBack);
-        mSocketChanner.setNeighbors(sc.getNeighbours());
-        mSocketChanner.start();
-        mSocketChanner.registerCallback(mChcb);
+        mLanScanner = new Scanner(new NeighborUpdateCallback());
+
+        myReceiver = MyNetworkReceiver.getInstance(this);
+
+        mSocketChanner = new SocketChanner(this);
     }
 
-    public void becomeAsClient(View v){
-        //sl.becomeAsClient();
-        mSocketChanner.sendText("!!!From Client!!!");
-    }
+
+/* ********************************************************************************************** */
 
     class SocketCallback implements SocketListener.CallBack{
         @Override
@@ -97,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
 
 /* ============================================================================================== */
 
-    public class NetworkNotification implements MyNetworkReceiver.CallBack {
+    public class NetworkCallback implements MyNetworkReceiver.CallBack {
         @Override
         public void onWifiConnectivity(boolean connected) {
 
@@ -109,16 +166,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private SocketChanner.ChannelCallback mChcb = new SocketChanner.ChannelCallback() {
+/* ********************************************************************************************** */
+
+
+    class ChannerCallback implements SocketChanner.ChannelCallback {
+
         @Override
         public void onReadEvent(ByteBuffer bb) {
-            //mTXVContents.append(bb.toString());
+
         }
 
         @Override
         public void onTextMessageArrived(String text) {
-            mTXVContents.append(text);
+            mTXVContents.append(text + "\n");
         }
     };
 
+/* ********************************************************************************************** */
+
+    class NeighborUpdateCallback implements Scanner.Callback {
+        @Override
+        public void onNewNeighbors(ArrayList<String> neighbors) {
+            mSocketChanner.setNeighbors(neighbors);
+        }
+    }
 }

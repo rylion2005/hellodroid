@@ -6,6 +6,10 @@ package com.hellodroid.lan;
 **     
 */
 
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -24,8 +28,9 @@ import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,18 +46,28 @@ import java.util.regex.Pattern;
 **
 ** ********************************************************************************
 */
-public class Scanner {
+public class Scanner extends Handler {
     private static final String TAG = "Scanner";
 
+    private static final int MESSAGE_UPDATE_NEIGHBORS = 0xAA;
     private static int SCAN_PERIOD = 60 * 1000; // default 1 minutes
+
+    private Timer mTimer;
+    private TimerTask mTimerTask = new Scanning();
     private String myNetworkAddress;
+    private Callback mCallback;
 
 
 /* ********************************************************************************************** */
 
-    public Scanner (){
-        Thread t = new Thread(new ScanningRunnable());
-        t.start();
+    public Scanner(Callback cb){
+        if (cb!=null){
+            mCallback = cb;
+        }
+
+        mTimerTask = new Scanning();
+        mTimer = new Timer();
+        mTimer.schedule(mTimerTask, 100, SCAN_PERIOD);
     }
 
     public ArrayList<String> getNeighbours(){
@@ -63,37 +78,20 @@ public class Scanner {
         return myNetworkAddress;
     }
 
-
-/* ********************************************************************************************** */
-
-    private String getMyLocalAddress() {
-
-        String hostIp = null;
-        try {
-            Enumeration nis = NetworkInterface.getNetworkInterfaces();
-            InetAddress ia = null;
-            while (nis.hasMoreElements()) {
-                NetworkInterface ni = (NetworkInterface) nis.nextElement();
-                Enumeration<InetAddress> ias = ni.getInetAddresses();
-                while (ias.hasMoreElements()) {
-                    ia = ias.nextElement();
-                    if (ia instanceof Inet6Address) {
-                        continue;// skip ipv6
-                    }
-                    String ip = ia.getHostAddress();
-                    if (!"127.0.0.1".equals(ip)) {
-                        hostIp = ia.getHostAddress();
-                        break;
-                    }
+    @Override
+    public void handleMessage(Message msg) {
+        switch (msg.what) {
+            case MESSAGE_UPDATE_NEIGHBORS:
+                if (mCallback != null){
+                    mCallback.onNewNeighbors(getNeighbours());
                 }
-            }
-        } catch (SocketException e) {
-            //TODO
-            //e.printStackTrace();
+                break;
+
+            default:break;
         }
-        return hostIp;
     }
 
+/* ********************************************************************************************** */
 
     private ArrayList<String> readArp() {
         ArrayList<String> ipList = new ArrayList<>();
@@ -121,7 +119,6 @@ public class Scanner {
         }
         return ipList;
     }
-
 
     private String getNetworkAddress() {
         URL infoUrl = null;
@@ -166,64 +163,94 @@ public class Scanner {
         return ipLine;
     }
 
-
-    private void discovery(String ip){
-
-        if ((ip == null) || (ip.length() == 0)){
-            return;
-        }
-
-        String ipHead = ip.substring(0, getWhenCount(ip, "\\.", 2));
-
-        for (int i = 0; i < 255; i++){
-            String head3 = ipHead + "." + Integer.toString(i);
-            for (int j = 0; j < 255; j++){
-                try {
-                    String address4 = head3 + "." + Integer.toString(j);
-                    DatagramPacket dp = new DatagramPacket(new byte[0], 0, 0);
-                    DatagramSocket socket = new DatagramSocket();
-                    dp.setAddress(InetAddress.getByName(address4));
-                    socket.send(dp);
-                    socket.close();
-                } catch (SocketException e) {
-                    // TODO
-                } catch (UnknownHostException e) {
-                    // TODO
-                } catch (IOException e) {
-                    // TODO
-                }
-            }
-        }
-    }
-
-
-    private int getWhenCount(final String line, final String mode, final int count) {
-        Matcher matcher = Pattern.compile(mode).matcher(line);
-        int index = 0;
-        while(matcher.find()) {
-            index++;
-            if(index == count){
-                break;
-            }
-        }
-        return matcher.start();
-    }
-
-
 /* ********************************************************************************************** */
 
-    class ScanningRunnable implements Runnable{
+    class Scanning extends TimerTask{
+        boolean ifnotify = false;
+
         @Override
         public void run() {
-            myNetworkAddress = getMyNetworkAddress();
-            while (true) {
+            Log.v(TAG, ":Scanner: timer task running");
+            //myNetworkAddress = getMyNetworkAddress();
+            if (!ifnotify) {
                 discovery(getMyLocalAddress());
-                try {
-                    Thread.sleep(SCAN_PERIOD);
-                } catch (InterruptedException e) {
-                    //TODO:
+            } else {
+                sendEmptyMessage(MESSAGE_UPDATE_NEIGHBORS);
+            }
+            ifnotify = !ifnotify;
+        }
+
+        private String getMyLocalAddress() {
+
+            String hostIp = null;
+            try {
+                Enumeration nis = NetworkInterface.getNetworkInterfaces();
+                InetAddress ia = null;
+                while (nis.hasMoreElements()) {
+                    NetworkInterface ni = (NetworkInterface) nis.nextElement();
+                    Enumeration<InetAddress> ias = ni.getInetAddresses();
+                    while (ias.hasMoreElements()) {
+                        ia = ias.nextElement();
+                        if (ia instanceof Inet6Address) {
+                            continue;// skip ipv6
+                        }
+                        String ip = ia.getHostAddress();
+                        if (!"127.0.0.1".equals(ip)) {
+                            hostIp = ia.getHostAddress();
+                            break;
+                        }
+                    }
+                }
+            } catch (SocketException e) {
+                //TODO
+                //e.printStackTrace();
+            }
+            return hostIp;
+        }
+
+
+        private void discovery(String ip){
+
+            if ((ip == null) || (ip.length() == 0)){
+                return;
+            }
+
+            String ipHead = ip.substring(0, getWhenCount(ip, "\\.", 2));
+            for (int i = 0; i < 255; i++){
+                String head3 = ipHead + "." + Integer.toString(i);
+                for (int j = 0; j < 255; j++){
+                    try {
+                        String address4 = head3 + "." + Integer.toString(j);
+                        DatagramPacket dp = new DatagramPacket(new byte[0], 0, 0);
+                        DatagramSocket socket = new DatagramSocket();
+                        dp.setAddress(InetAddress.getByName(address4));
+                        socket.send(dp);
+                        socket.close();
+                    } catch (SocketException e) {
+                        // TODO
+                    } catch (UnknownHostException e) {
+                        // TODO
+                    } catch (IOException e) {
+                        // TODO
+                    }
                 }
             }
         }
+
+        private int getWhenCount(final String line, final String mode, final int count) {
+            Matcher matcher = Pattern.compile(mode).matcher(line);
+            int index = 0;
+            while(matcher.find()) {
+                index++;
+                if(index == count){
+                    break;
+                }
+            }
+            return matcher.start();
+        }
+    }
+
+    abstract public interface Callback {
+        void onNewNeighbors(ArrayList<String> neighbors);
     }
 }
