@@ -17,10 +17,12 @@ import com.hellodroid.network.MyNetworkReceiver;
 import com.hellodroid.lan.Scanner;
 import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.socket.SocketListener;
+import com.hellodroid.utalkie.UtalkieActivity;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+
+import static android.app.Activity.RESULT_OK;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -63,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Log.v(TAG, "onActivityResult: " + requestCode + ", " + resultCode + ", " + data.toString());
+        Log.v(TAG, "onActivityResult: " + requestCode + ", " + resultCode);
         switch (requestCode) {
             case 0xCE:
                 if ((resultCode == RESULT_OK) && (data != null)){
@@ -96,11 +98,8 @@ public class MainActivity extends AppCompatActivity {
         mSocketChanner.registerCallback(new ChannerCallback());
     }
 
-    public void becomeAsClient(View v){
-        //sl.becomeAsClient();
-
-        // socket chnner
-        mSocketChanner.sendText("!!!From Client!!!");
+    public void startUTalkie(View v){
+        startActivity(new Intent(this, UtalkieActivity.class));
     }
 
     public void selectFile(View v){

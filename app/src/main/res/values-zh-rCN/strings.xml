@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- UTalkie$Main -->
+    <string name="sessions">会话</string>
+    <string name="contacts">通讯录</string>
+    <string name="account">我</string>
+</resources>
