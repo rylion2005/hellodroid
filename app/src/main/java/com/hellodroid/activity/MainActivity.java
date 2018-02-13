@@ -114,6 +114,11 @@ public class MainActivity extends AppCompatActivity {
         public void onReadEvent(ByteBuffer bb) {
             //mTXVContents.append(bb.toString());
         }
+
+        @Override
+        public void onTextMessageArrived(String text) {
+            mTXVContents.append(text);
+        }
     };
 
 }

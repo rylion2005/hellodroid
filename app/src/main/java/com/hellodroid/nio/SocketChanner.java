@@ -8,11 +8,13 @@ package com.hellodroid.nio;
 */
 
 
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -42,14 +44,22 @@ public class SocketChanner extends Handler {
     private static final int SOCKET_PORT = 8866;
     private static final String HOST_ADDRESS = "192.168.1.100"; //"10.10.10.103";
     private static final int BUFFER_BYTES = 1028;
-    private static final int MESSAGE_OUTGOING = 0xC1;
-    private static final int MESSAGE_INCOMING = 0xC2;
+    private static final int MESSAGE_CONNECT = 0xC0;
+    private static final int MESSAGE_INCOMING = 0xC1;
+    private static final int MESSAGE_OUTGOING = 0xC2;
 
     private List<String> mNeighborList = new ArrayList<>();
     private final Thread mAcceptThread = new Thread(new AcceptRunnable());
     private final Thread mConnectThread = new Thread(new ConnectRunnable());
     private final List<WriteRunnable> mWriteRunnableList = new ArrayList<>();
     private final List<ReadRunnable> mReadRunnableList = new ArrayList<>();
+
+    private final Thread mReaderThread = new Thread(new ReaderRunnable());
+    private final Thread mSenderThread = new Thread(new SenderRunnable("192.168.1.100"));
+
+    private final Object mReceiveRunnableLock = new Object();
+    private final List<ReceiveRunnable> mReceiveRunnableList = new ArrayList<>();
+
 
     private Selector mAcceptSelector;
     private Selector mReadSelector;
@@ -58,7 +68,7 @@ public class SocketChanner extends Handler {
     private final Object mIncomingQueueLock = new Object();
     private final Object mOutgoingQueueLock = new Object();
     private final List<ByteBuffer> mOutgoingQueue = new ArrayList<>();
-    private final List<ByteBuffer> mIncomingQueue = new ArrayList<>();
+    private final List<String> mIncomingQueue = new ArrayList<>();
 
     private ChannelCallback  mCallback;
 
@@ -69,7 +79,6 @@ public class SocketChanner extends Handler {
     public SocketChanner(){
         initSelectors();
     }
-
     public void registerCallback(ChannelCallback cb){
         mCallback = cb;
     }
@@ -82,8 +91,11 @@ public class SocketChanner extends Handler {
     }
 
     public void start(){
-        mAcceptThread.start();
-        mConnectThread.start();
+        //mAcceptThread.start();
+        //mConnectThread.start();
+        mReaderThread.start();
+        //mSenderThread.start();
+
     }
 
     /*
@@ -106,7 +118,12 @@ public class SocketChanner extends Handler {
     public void handleMessage(Message msg) {
         //Log.v(TAG, "handleMessage: " + msg.what);
         switch (msg.what) {
-            case MESSAGE_INCOMING:
+            case MESSAGE_CONNECT:
+                for ( ReceiveRunnable rr : mReceiveRunnableList ) {
+                    Thread t = new Thread(rr);
+                    t.start();
+                }
+                /*
                 //synchronized (mIncomingQueueLock){
                     Log.v(TAG, "ReadRunnableList: " + mReadRunnableList.size());
                     for (ReadRunnable rr : mReadRunnableList){
@@ -114,16 +131,34 @@ public class SocketChanner extends Handler {
                         r.start();
                     }
                 //}
+                */
+                break;
+
+            case MESSAGE_INCOMING:
+                // messages from all threads will be queued here
+                String textMessage = msg.getData().getString("ByteBuffer");
+                mIncomingQueue.add(textMessage);
+                dispatch();
                 break;
 
             case MESSAGE_OUTGOING:
                 synchronized (mOutgoingQueueLock) {
+                    /*
                     Log.v(TAG, "WriteRunnableList: " + mWriteRunnableList.size());
                     for (WriteRunnable wr : mWriteRunnableList) {
                         wr.copyQueue(mOutgoingQueue);
                         Thread w = new Thread(wr);
                         w.start();
                     }
+                    */
+
+                    for (String host : mNeighborList){
+                        SenderRunnable sr = new SenderRunnable(host);
+                        sr.cloneQueue(mOutgoingQueue);
+                        Thread s = new Thread(sr);
+                        s.start();
+                    }
+
                     mOutgoingQueue.clear();
                 }
                 break;
@@ -134,16 +169,7 @@ public class SocketChanner extends Handler {
     }
 
     public void sendText(String shortText){
-        int length = shortText.length();
-        ByteBuffer bb = ByteBuffer.allocate(length);
-        bb.put(shortText.getBytes());
-        //Log.v(TAG, "bb: " + bb);
-        bb.flip();
-        //Log.v(TAG, "bb: " + bb);
-        if (bb.remaining() > 0) {
-            enqueueOutgoings(bb);
-        }
-        bb.clear();
+        enqueueOutgoings(BytesWrapper.wrapTextMessage(shortText));
     }
 
 /* ********************************************************************************************** */
@@ -180,6 +206,14 @@ public class SocketChanner extends Handler {
         sendEmptyMessage(MESSAGE_OUTGOING);
     }
 
+    private void dispatch(){
+        for ( String msg : mIncomingQueue) {
+            if (mCallback != null){
+                mCallback.onTextMessageArrived(msg);
+            }
+        }
+    }
+
 
 /* ********************************************************************************************** */
 
@@ -193,8 +227,8 @@ public class SocketChanner extends Handler {
             try {
                 Log.v(TAG, ":Accept: running");
                 ServerSocketChannel ssc = ServerSocketChannel.open();
-                ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
                 ssc.configureBlocking(false);
+                ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
                 SelectionKey key = ssc.register(mAcceptSelector, SelectionKey.OP_ACCEPT);
                 Log.v(TAG, ":Accept: registered key=" + key.toString());
                 while (true) {  // always accept client
@@ -446,8 +480,231 @@ public class SocketChanner extends Handler {
         }
     }
 
+    class ReaderRunnable implements Runnable {
+
+        public ReaderRunnable(){
+
+        }
+
+        @Override
+        public void run() {
+            Log.v(TAG, ":Reader: running");
+            ServerSocketChannel ssc;
+
+            try {
+                ssc = ServerSocketChannel.open();
+                ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
+                //ssc.configureBlocking(false);
+            } catch (IOException e){
+                Log.v(TAG, ":reader: thread died");
+                e.printStackTrace();
+                return;
+            }
+
+            while (true) {
+                try {
+                    Log.v(TAG, ":Reader: wait accept");
+                    SocketChannel sc = ssc.accept();
+                    if (sc!=null){
+                        Log.v(TAG, ":Reader: accept= " + sc.socket().toString());
+                        ReceiveRunnable rr = new ReceiveRunnable(sc);
+                        synchronized (mReceiveRunnableLock) {
+                            mReceiveRunnableList.add(rr);
+                        }
+                        sendEmptyMessage(MESSAGE_CONNECT);
+                    }
+                    //Thread.sleep(1000);
+                } catch (IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        private boolean hasRunnable(SocketChannel sc){
+            boolean has = false;
+            for ( ReceiveRunnable rr : mReceiveRunnableList ) {
+                try {
+                    String host = rr.getSocketChannel().socket().getInetAddress().toString();
+                    String newHost = sc.socket().getInetAddress().toString();
+                    if (host.equals(newHost)) {
+                        Log.v(TAG, "find a same ReadRunnable");
+                        has = true;
+                        break;
+                    }
+                } catch (NullPointerException e) {
+                    //sometimes getRemoteSocketAddress is null when socket disconnects
+                }
+            }
+            return has;
+        }
+    }
+
+    class ReceiveRunnable implements Runnable{
+        private SocketChannel mSocketChannel;
+
+        private ReceiveRunnable(SocketChannel sc){
+            mSocketChannel = sc;
+        }
+
+        @Override
+        public void run() {
+            Log.v(TAG, ":Receiver: running");
+            try {
+                ByteBuffer bb = ByteBuffer.allocate(BUFFER_BYTES);
+                int count = mSocketChannel.read(bb);
+                bb.flip();
+                // TODO: preprocess later
+                dispatchText(bb);
+            } catch (IOException e) {
+                //TODO:
+            }
+        }
+
+        private SocketChannel getSocketChannel(){
+            return mSocketChannel;
+        }
+
+        private void preprocess(ByteBuffer bb){
+            int head = bb.getInt();
+            if (head != BytesWrapper.MSG_TYPE_TEXT){
+                Log.v(TAG, "It is a file related buffer, ignore");
+            }
+        }
+
+        private void dispatchText(ByteBuffer bb){
+            Log.v(TAG, ":ReceiveRunnable: dispatch Text=" + bb.toString());
+            Message msg = new Message();
+            msg.what = MESSAGE_INCOMING;
+            msg.arg1 = BytesWrapper.getContentByteCount(bb);
+            String text = new String(BytesWrapper.unwrapContentBytes(bb));
+            Bundle b = new Bundle();
+            b.putString("ByteBuffer", text);
+            msg.setData(b);
+            sendMessage(msg);
+        }
+    }
+
+    class SenderRunnable implements Runnable {
+        private String mHost;
+        private final List<ByteBuffer> mOutgoingQueue = new ArrayList<>();
+
+        private SenderRunnable(String ip){
+            mHost = ip;
+        }
+
+        @Override
+        public void run() {
+            Log.v(TAG, ">>>>>>:Sender: running : " + mHost);
+            while(true) {
+                try {
+                    SocketChannel sc = SocketChannel.open();
+                    //sc.configureBlocking(false);  // Here MUST be before the connect!!!!!!
+                    boolean connected = sc.connect(new InetSocketAddress(mHost, SOCKET_PORT));
+                    if (connected) { // connected !
+                        Log.v(TAG, ":Sender: queue=" + mOutgoingQueue.size());
+                        for (ByteBuffer bb : mOutgoingQueue) {
+                            Log.v(TAG, ":Sender: bb=" + bb);
+                            int writeCount = sc.write(bb);
+                            Log.v(TAG, ":Sender: write count=" + writeCount);
+                            bb.clear();  // clear buffer
+                        }
+                        mOutgoingQueue.clear(); // clear queue
+                        sc.close();
+                        break;
+                    } else {
+                        Thread.sleep(1000);
+                        sc.close();
+                        continue;
+                    }
+                } catch (IOException | InterruptedException e) {
+                    Log.v(TAG, ":Sender: IOException");
+                    break;
+                }
+            }
+            Log.v(TAG, ":Sender: running over [" + mHost + "] !!!");
+        }
+
+        private void cloneQueue(List<ByteBuffer> source){
+            mOutgoingQueue.addAll(source);
+        }
+    }
+
+    static class BytesWrapper{
+        private static final int MESSAGE_HEADER_BYTE_LENGTH = 4;
+        private static final int MAX_BUFFER_BYTE_LENGTH = 1028;
+        private static final int MAX_MESSAGE_BYTE_LENGTH = 1024; // header + contents
+
+        private static final int MSG_TYPE_HEART_BEAT = 0xFF00;  // no message content
+        private static final int MSG_TYPE_TEXT = 0xFFA0;        // header + contents
+        private static final int MSG_TYPE_FILE_NAME = 0xFFB0;   // header + contents
+        private static final int MSG_TYPE_RAW_CONTENT = 0xFFBA; // no message header
+        private static final int MSG_TYPE_FILE_ENDING = 0xFFBB; // no message content
+
+        private static ByteBuffer wrap(int type, byte[] bytes, int length){
+            ByteBuffer bb;
+
+            if (length > MAX_MESSAGE_BYTE_LENGTH) {
+                Log.v(TAG, "byte error");
+                return null;
+            }
+
+            bb = ByteBuffer.allocate(length + MESSAGE_HEADER_BYTE_LENGTH);
+            if (type != MSG_TYPE_RAW_CONTENT){
+                bb.putInt(type);
+            }
+
+            if (bytes != null) { // allow content has nothing
+                bb.put(bytes);
+            }
+            bb.rewind();
+
+            return bb;
+        }
+
+        private static ByteBuffer wrapTextMessage(String text){
+            return wrap(MSG_TYPE_TEXT, text.getBytes(), text.getBytes().length);
+        }
+
+        private static ByteBuffer wrapFileName(String fileName){
+            return wrap(MSG_TYPE_FILE_NAME, fileName.getBytes(), fileName.getBytes().length);
+        }
+
+        private static ByteBuffer wrapRawContent(byte[] bytes, int length){
+            return wrap(MSG_TYPE_RAW_CONTENT, bytes, length);
+        }
+
+        private static ByteBuffer wrapFileEnding(){
+            return wrap(MSG_TYPE_FILE_ENDING, null, 0);
+        }
+
+        private static int unwrapHeader(ByteBuffer buffer){
+            return buffer.getInt(0);
+        }
+
+        private static byte[] unwrapContentBytes(ByteBuffer buffer){
+            int length = buffer.limit() - MESSAGE_HEADER_BYTE_LENGTH;
+            byte[] content = new byte[length];
+            buffer.position(MESSAGE_HEADER_BYTE_LENGTH);
+            buffer.get(content);
+            return content;
+        }
+
+        private static ByteBuffer cutContent(ByteBuffer buffer){
+            int length = buffer.limit() - MESSAGE_HEADER_BYTE_LENGTH;
+            ByteBuffer bb = ByteBuffer.allocate(length);
+            bb.put(unwrapContentBytes(buffer));
+            bb.rewind();
+            return bb;
+        }
+
+        private static int getContentByteCount(ByteBuffer bb){
+            return bb.limit() - MESSAGE_HEADER_BYTE_LENGTH;
+        }
+    }
+
     abstract public interface ChannelCallback {
         abstract void onReadEvent(ByteBuffer bb);
+        abstract void onTextMessageArrived(String text);
     }
 
 }
