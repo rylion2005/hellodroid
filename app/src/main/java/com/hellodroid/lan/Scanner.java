@@ -28,6 +28,7 @@ import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -49,41 +50,35 @@ import java.util.regex.Pattern;
 public class Scanner extends Handler {
     private static final String TAG = "Scanner";
 
-    private static final int MESSAGE_UPDATE_NEIGHBORS = 0xAA;
-    private static int SCAN_PERIOD = 60 * 1000; // default 1 minutes
+    private static final int MESSAGE_UPDATE_ADDRESSES = 0xAA;
+    private static final int SCAN_PERIOD = 1000; //60 * 1000; // default 1 minutes
 
-    private Timer mTimer;
-    private TimerTask mTimerTask = new Scanning();
+    private static Scanner mInstance;
+
+    private String myLocalAddress;
     private String myNetworkAddress;
-    private Callback mCallback;
+    private final List<Callback> mCallbackList = new ArrayList<>();
 
 
 /* ********************************************************************************************** */
 
-    public Scanner(Callback cb){
-        if (cb!=null){
-            mCallback = cb;
+
+    public static Scanner newInstance(Callback cb){
+        if (mInstance == null){
+            mInstance = new Scanner(cb);
         }
-
-        mTimerTask = new Scanning();
-        mTimer = new Timer();
-        mTimer.schedule(mTimerTask, 100, SCAN_PERIOD);
-    }
-
-    public ArrayList<String> getNeighbours(){
-        return readArp();
-    }
-
-    public String getMyNetworkAddress(){
-        return myNetworkAddress;
+        return mInstance;
     }
 
     @Override
     public void handleMessage(Message msg) {
+        Log.v(TAG, "Message: " + msg.what);
         switch (msg.what) {
-            case MESSAGE_UPDATE_NEIGHBORS:
-                if (mCallback != null){
-                    mCallback.onNewNeighbors(getNeighbours());
+            case MESSAGE_UPDATE_ADDRESSES:
+                for (Callback cb : mCallbackList){
+                    cb.onUpdateNeighbors(getNeighbours());
+                    cb.onUpdateLocalAddress(getMyLocalAddress());
+                    cb.onUpdateInternetAddress(getMyInternetAddress());
                 }
                 break;
 
@@ -91,7 +86,29 @@ public class Scanner extends Handler {
         }
     }
 
+    public ArrayList<String> getNeighbours(){
+        return readArp();
+    }
+
+    public String getMyLocalAddress(){
+        return myLocalAddress;
+    }
+
+    public String getMyInternetAddress(){
+        return myNetworkAddress;
+    }
+
+
 /* ********************************************************************************************** */
+
+    private Scanner(Callback cb){
+        if ( cb != null ){
+            mCallbackList.add(cb);
+        }
+
+        Timer timer = new Timer();
+        timer.schedule(new Scanning(), 100, SCAN_PERIOD);
+    }
 
     private ArrayList<String> readArp() {
         ArrayList<String> ipList = new ArrayList<>();
@@ -120,48 +137,6 @@ public class Scanner extends Handler {
         return ipList;
     }
 
-    private String getNetworkAddress() {
-        URL infoUrl = null;
-        InputStream inStream = null;
-        String ipLine = "";
-        HttpURLConnection httpConnection = null;
-        try {
-            // infoUrl = new URL("http://ip168.com/");
-            infoUrl = new URL("http://pv.sohu.com/cityjson?ie=utf-8");
-            URLConnection connection = infoUrl.openConnection();
-            httpConnection = (HttpURLConnection) connection;
-            int responseCode = httpConnection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                inStream = httpConnection.getInputStream();
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(inStream, "utf-8"));
-                StringBuilder strber = new StringBuilder();
-                String line = null;
-                while ((line = reader.readLine()) != null){
-                    strber.append(line + "\n");
-                }
-                Pattern pattern = Pattern.compile("((?:(?:25[0-5]|2[0-4]\\d|((1\\d{2})|([1-9]?\\d)))\\.){3}(?:25[0-5]|2[0-4]\\d|((1\\d{2})|([1-9]?\\d))))");
-                Matcher matcher = pattern.matcher(strber.toString());
-                if (matcher.find()) {
-                    ipLine = matcher.group();
-                }
-            }
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                inStream.close();
-                httpConnection.disconnect();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
-        return ipLine;
-    }
 
 /* ********************************************************************************************** */
 
@@ -171,43 +146,17 @@ public class Scanner extends Handler {
         @Override
         public void run() {
             Log.v(TAG, ":Scanner: timer task running");
-            //myNetworkAddress = getMyNetworkAddress();
+
+            myLocalAddress = getLocalAddress();
+            myNetworkAddress = getInternetAddress();
+
             if (!ifnotify) {
-                discovery(getMyLocalAddress());
+                discovery(myLocalAddress);
             } else {
-                sendEmptyMessage(MESSAGE_UPDATE_NEIGHBORS);
+                sendEmptyMessage(MESSAGE_UPDATE_ADDRESSES);
             }
             ifnotify = !ifnotify;
         }
-
-        private String getMyLocalAddress() {
-
-            String hostIp = null;
-            try {
-                Enumeration nis = NetworkInterface.getNetworkInterfaces();
-                InetAddress ia = null;
-                while (nis.hasMoreElements()) {
-                    NetworkInterface ni = (NetworkInterface) nis.nextElement();
-                    Enumeration<InetAddress> ias = ni.getInetAddresses();
-                    while (ias.hasMoreElements()) {
-                        ia = ias.nextElement();
-                        if (ia instanceof Inet6Address) {
-                            continue;// skip ipv6
-                        }
-                        String ip = ia.getHostAddress();
-                        if (!"127.0.0.1".equals(ip)) {
-                            hostIp = ia.getHostAddress();
-                            break;
-                        }
-                    }
-                }
-            } catch (SocketException e) {
-                //TODO
-                //e.printStackTrace();
-            }
-            return hostIp;
-        }
-
 
         private void discovery(String ip){
 
@@ -237,6 +186,74 @@ public class Scanner extends Handler {
             }
         }
 
+
+        private String getLocalAddress() {
+
+            String hostIp = null;
+            try {
+                Enumeration nis = NetworkInterface.getNetworkInterfaces();
+                InetAddress ia = null;
+                while (nis.hasMoreElements()) {
+                    NetworkInterface ni = (NetworkInterface) nis.nextElement();
+                    Enumeration<InetAddress> ias = ni.getInetAddresses();
+                    while (ias.hasMoreElements()) {
+                        ia = ias.nextElement();
+                        if (ia instanceof Inet6Address) {
+                            continue;// skip ipv6
+                        }
+                        String ip = ia.getHostAddress();
+                        if (!"127.0.0.1".equals(ip)) {
+                            hostIp = ia.getHostAddress();
+                            break;
+                        }
+                    }
+                }
+            } catch (SocketException e) {
+                //TODO
+                //e.printStackTrace();
+            }
+            return hostIp;
+        }
+
+        private String getInternetAddress() {
+            URL infoUrl = null;
+            InputStream inStream = null;
+            String ipLine = "";
+            HttpURLConnection httpConnection = null;
+            try {
+                // infoUrl = new URL("http://ip168.com/");
+                infoUrl = new URL("http://pv.sohu.com/cityjson?ie=utf-8");
+                URLConnection connection = infoUrl.openConnection();
+                httpConnection = (HttpURLConnection) connection;
+                int responseCode = httpConnection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    inStream = httpConnection.getInputStream();
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(inStream, "utf-8"));
+                    StringBuilder strber = new StringBuilder();
+                    String line = null;
+                    while ((line = reader.readLine()) != null){
+                        strber.append(line + "\n");
+                    }
+                    Pattern pattern = Pattern.compile("((?:(?:25[0-5]|2[0-4]\\d|((1\\d{2})|([1-9]?\\d)))\\.){3}(?:25[0-5]|2[0-4]\\d|((1\\d{2})|([1-9]?\\d))))");
+                    Matcher matcher = pattern.matcher(strber.toString());
+                    if (matcher.find()) {
+                        ipLine = matcher.group();
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    inStream.close();
+                    httpConnection.disconnect();
+                } catch (IOException|NullPointerException e) {
+                    e.printStackTrace();
+                }
+            }
+            return ipLine;
+        }
+
         private int getWhenCount(final String line, final String mode, final int count) {
             Matcher matcher = Pattern.compile(mode).matcher(line);
             int index = 0;
@@ -248,9 +265,12 @@ public class Scanner extends Handler {
             }
             return matcher.start();
         }
+
     }
 
-    abstract public interface Callback {
-        void onNewNeighbors(ArrayList<String> neighbors);
+    public interface Callback {
+        void onUpdateNeighbors(ArrayList<String> neighbors);
+        void onUpdateLocalAddress(String address);
+        void onUpdateInternetAddress(String address);
     }
 }

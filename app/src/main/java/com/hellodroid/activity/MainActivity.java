@@ -30,9 +30,9 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView mTXVContents;
 
+    private Scanner mScanner;
     private SocketListener mSocketListener;
     private MyNetworkReceiver myReceiver;
-    private Scanner mLanScanner;
     private SocketChanner mSocketChanner;
 
     @Override
@@ -93,9 +93,9 @@ public class MainActivity extends AppCompatActivity {
         //sl.registerCallback(mCallBack);
 
         // socket channer
-        mSocketChanner.setNeighbors(mLanScanner.getNeighbours());
-        mSocketChanner.start();
-        mSocketChanner.registerCallback(new ChannerCallback());
+        //mSocketChanner.setNeighbors(mLanScanner.getNeighbours());
+        //mSocketChanner.start();
+        //mSocketChanner.registerCallback(new ChannerCallback());
     }
 
     public void startUTalkie(View v){
@@ -113,23 +113,15 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(intent,0xCE);
     }
 
-    public void scanLan(View v){
-        mTXVContents.setText("");
-        for (String ip : mLanScanner.getNeighbours()){
-            if (ip != null) {
-                mTXVContents.append(ip + "\n");
-            }
-        }
-    }
-
 
 /* ============================================================================================== */
 
     private void init(){
+
+        mScanner = Scanner.newInstance(null);
+
         mSocketListener = new SocketListener(this);
         //mListenerCallBack = new SocketCallback();
-
-        mLanScanner = new Scanner(new NeighborUpdateCallback());
 
         myReceiver = MyNetworkReceiver.getInstance(this);
 
@@ -182,11 +174,4 @@ public class MainActivity extends AppCompatActivity {
     };
 
 /* ********************************************************************************************** */
-
-    class NeighborUpdateCallback implements Scanner.Callback {
-        @Override
-        public void onNewNeighbors(ArrayList<String> neighbors) {
-            mSocketChanner.setNeighbors(neighbors);
-        }
-    }
 }

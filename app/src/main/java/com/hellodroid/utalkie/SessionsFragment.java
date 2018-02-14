@@ -17,26 +17,20 @@ import java.util.List;
 
 public class SessionsFragment extends Fragment implements AdapterView.OnItemClickListener {
     private static final String TAG = "SessionsFragment";
-    // TODO: Customize parameter argument names
 
     private OnListFragmentInteractionListener mListener;
     private MyBaseAdapter mAdapter;
 
-    /**
-     * Mandatory empty constructor for the fragment manager to instantiate the
-     * fragment (e.g. upon screen orientation changes).
-     */
+
+/* ********************************************************************************************** */
+
+
     public SessionsFragment() {
     }
 
-    // TODO: Customize parameter initialization
-    @SuppressWarnings("unused")
+
     public static SessionsFragment newInstance() {
-        SessionsFragment fragment = new SessionsFragment();
-        //Bundle args = new Bundle();
-        //args.putInt(ARG_COLUMN_COUNT, columnCount);
-        //fragment.setArguments(args);
-        return fragment;
+        return new SessionsFragment();
     }
 
     @Override
@@ -47,7 +41,7 @@ public class SessionsFragment extends Fragment implements AdapterView.OnItemClic
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_session_list, container, false);
+        View view = inflater.inflate(R.layout.fragment_sessions, container, false);
         initViews(view);
         return view;
     }
@@ -56,12 +50,15 @@ public class SessionsFragment extends Fragment implements AdapterView.OnItemClic
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
+        // TODO:
+        /*
         if (context instanceof OnListFragmentInteractionListener) {
             mListener = (OnListFragmentInteractionListener) context;
         } else {
             throw new RuntimeException(context.toString()
                     + " must implement OnListFragmentInteractionListener");
         }
+        */
     }
 
     @Override
