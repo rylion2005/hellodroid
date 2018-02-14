@@ -1,11 +1,8 @@
 package com.hellodroid.activity;
 
 
-import android.content.ContentResolver;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
-import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -17,12 +14,9 @@ import com.hellodroid.network.MyNetworkReceiver;
 import com.hellodroid.lan.Scanner;
 import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.socket.SocketListener;
-import com.hellodroid.utalkie.UtalkieActivity;
-
+import com.hellodroid.utalkie.UTalkieActivity;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 
-import static android.app.Activity.RESULT_OK;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -99,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startUTalkie(View v){
-        startActivity(new Intent(this, UtalkieActivity.class));
+        startActivity(new Intent(this, UTalkieActivity.class));
     }
 
     public void selectFile(View v){

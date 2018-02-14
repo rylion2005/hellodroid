@@ -27,10 +27,14 @@
         </activity>
         <activity android:name=".activity.BaseActivity" />
         <activity
-            android:name=".utalkie.UtalkieActivity"
+            android:name=".utalkie.UTalkieActivity"
             android:label="UTalkie"
-            android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
-        </activity>
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+
+        <service
+            android:name=".service.MyDaemonService"
+            android:enabled="true"
+            android:exported="true"></service>
     </application>
 
 </manifest>

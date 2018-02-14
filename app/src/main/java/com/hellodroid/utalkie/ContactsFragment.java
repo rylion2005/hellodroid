@@ -39,23 +39,9 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-    }
-
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-
-        View view = inflater.inflate(R.layout.fragment_contacts, container, false);
-        initViews(view);
-        return view;
-    }
-
-
-    @Override
     public void onAttach(Context context) {
         super.onAttach(context);
+        Log.v(TAG, "onAttach");
         /*
         if (context instanceof OnFragmentInteractionListener) {
             mListener = (OnFragmentInteractionListener) context;
@@ -67,7 +53,41 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Log.v(TAG, "onCreate");
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        Log.v(TAG, "onCreateView");
+        View view = inflater.inflate(R.layout.fragment_contacts, container, false);
+        initViews(view);
+        return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.v(TAG, "onResume");
+    }
+
+    @Override
+    public void onPause() {
+        Log.v(TAG, "onPause");
+        super.onPause();
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.v(TAG, "onDestroy");
+        super.onDestroy();
+    }
+
+    @Override
     public void onDetach() {
+        Log.v(TAG, "onDetach");
         super.onDetach();
         mListener = null;
     }
@@ -83,6 +103,7 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     public void updateContacts(ArrayList<String> addressList){
         Log.v(TAG, "updateContacts: " + addressList.size());
         reloadContacts(addressList);
+        refreshListView();
     }
 
 
@@ -104,7 +125,10 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     private void refreshListView(){
-        Log.v(TAG, "reloadListView()");
+        Log.v(TAG, "refreshListView()");
+        if ((mAdapter == null)){
+            return;
+        }
 
         mAdapter.clearItemList();
         for ( String ip : mAddressList ) {

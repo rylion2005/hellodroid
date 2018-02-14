@@ -5,6 +5,7 @@ import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 
 import com.hellodroid.R;
@@ -12,8 +13,8 @@ import com.hellodroid.lan.Scanner;
 
 import java.util.ArrayList;
 
-public class UtalkieActivity extends AppCompatActivity {
-    private static final String TAG = "UtalkieActivity";
+public class UTalkieActivity extends AppCompatActivity {
+    private static final String TAG = "UTalkieActivity";
 
     private SessionsFragment mSessionsFragment;
     private ContactsFragment mContactsFragment;
@@ -27,22 +28,26 @@ public class UtalkieActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.v(TAG, "onCreate");
         setContentView(R.layout.activity_utalkie);
         initViews();
     }
 
     @Override
     protected void onResume() {
+        Log.v(TAG, "onResume: ");
         super.onResume();
     }
 
     @Override
     protected void onPause() {
+        Log.d(TAG, "onPause()");
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
+        Log.d(TAG, "onDestroy()");
         super.onDestroy();
     }
 
@@ -97,16 +102,19 @@ public class UtalkieActivity extends AppCompatActivity {
     class AddressUpdateCallback implements Scanner.Callback {
         @Override
         public void onUpdateNeighbors(ArrayList<String> neighbors) {
+            Log.v(TAG, "onUpdateNeighbors: " + neighbors.size());
             mContactsFragment.updateContacts(neighbors);
         }
 
         @Override
         public void onUpdateLocalAddress(String address) {
+            Log.v(TAG, "onUpdateLocalAddress: " + address);
             mProfileFragment.updateLocalAddress(address);
         }
 
         @Override
         public void onUpdateInternetAddress(String address) {
+            Log.v(TAG, "onUpdateInternetAddress: " + address);
             mProfileFragment.updateInternetAddress(address);
         }
     }

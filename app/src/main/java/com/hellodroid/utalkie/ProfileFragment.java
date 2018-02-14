@@ -22,6 +22,9 @@ import java.util.List;
 public class ProfileFragment extends Fragment{
     private static final String TAG = "AccountFragment";
 
+    TextView mTXVLocalAddress;
+    TextView mTXVInternetAddress;
+
     private OnFragmentInteractionListener mListener;
 
     private String mLocalAddress;
@@ -40,22 +43,6 @@ public class ProfileFragment extends Fragment{
     }
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        Log.v(TAG, "onCreate");
-    }
-
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        Log.v(TAG, "onCreateView");
-        View view = inflater.inflate(R.layout.fragment_account, container, false);
-        initViews(view);
-        return view;
-    }
-
-
-    @Override
     public void onAttach(Context context) {
         super.onAttach(context);
         Log.v(TAG, "onAttach");
@@ -70,6 +57,36 @@ public class ProfileFragment extends Fragment{
     }
 
     @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Log.v(TAG, "onCreate");
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        Log.v(TAG, "onCreateView");
+        View view = inflater.inflate(R.layout.fragment_account, container, false);
+        initViews(view);
+        return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+    }
+
+    @Override
     public void onDetach() {
         super.onDetach();
         mListener = null;
@@ -81,22 +98,33 @@ public class ProfileFragment extends Fragment{
     public void updateLocalAddress(String address){
         Log.v(TAG, "updateLocalAddress: " + address);
         mLocalAddress = address;
+        refreshAddressViews();
     }
 
     public void updateInternetAddress(String address){
         Log.v(TAG, "updateInternetAddress: " + address);
         mInternetAddress = address;
+        refreshAddressViews();
     }
 
 /* ********************************************************************************************** */
 
 
     private void initViews(View rootView){
-        TextView txvLocalAddress = rootView.findViewById(R.id.TXV_LocalAddress);
-        TextView txvInternetAddress = rootView.findViewById(R.id.TXV_InternetAddress);
+        mTXVLocalAddress = rootView.findViewById(R.id.TXV_LocalAddress);
+        mTXVInternetAddress = rootView.findViewById(R.id.TXV_InternetAddress);
 
-        txvLocalAddress.setText(mLocalAddress);
-        txvInternetAddress.setText(mInternetAddress);
+        mTXVLocalAddress.setText(mLocalAddress);
+        mTXVInternetAddress.setText(mInternetAddress);
+    }
+
+    private void refreshAddressViews(){
+        if ((mTXVLocalAddress == null || (mTXVInternetAddress == null))){
+            return;
+        }
+
+        mTXVLocalAddress.setText(mLocalAddress);
+        mTXVInternetAddress.setText(mInternetAddress);
     }
 
 
