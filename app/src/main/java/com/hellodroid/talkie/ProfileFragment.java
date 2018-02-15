@@ -1,4 +1,4 @@
-package com.hellodroid.utalkie;
+package com.hellodroid.talkie;
 
 import android.app.Fragment;
 import android.content.Context;
@@ -8,16 +8,9 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ListView;
 import android.widget.TextView;
 
 import com.hellodroid.R;
-import com.hellodroid.adapter.MyBaseAdapter;
-import com.hellodroid.lan.Scanner;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class ProfileFragment extends Fragment{
     private static final String TAG = "AccountFragment";

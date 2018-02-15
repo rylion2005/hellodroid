@@ -1,6 +1,7 @@
-package com.hellodroid.utalkie;
+package com.hellodroid.talkie;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.app.Fragment;
@@ -10,11 +11,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
-
 import com.hellodroid.R;
 import com.hellodroid.adapter.MyBaseAdapter;
-import com.hellodroid.lan.Scanner;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -94,7 +92,8 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
+        Log.v(TAG, "onItemClick: " + position);
+        startActivity(new Intent(this.getActivity(), ChatActivity.class));
     }
 
 
@@ -115,7 +114,7 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     private void initListViews(View rootView){
-        mAdapter = new MyBaseAdapter(this.getActivity(), R.layout.fragment_contact_list);
+        mAdapter = MyBaseAdapter.newInstance(this.getActivity(), R.layout.fragment_contact_list);
 
         ListView lsv = rootView.findViewById(R.id.LSV_Contacts);
         lsv.setAdapter(mAdapter);
@@ -132,7 +131,7 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
 
         mAdapter.clearItemList();
         for ( String ip : mAddressList ) {
-            MyBaseAdapter.ViewHolder vh = mAdapter.createViewHolderInstance();
+            MyBaseAdapter.ViewHolder vh = mAdapter.createHolder();
             vh.setImageView(R.id.IMV_ContactLogo, R.mipmap.ic_contact);
             vh.setTextView(R.id.TXV_IpAddress, ip);
         }

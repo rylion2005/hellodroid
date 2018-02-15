@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".MainApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -27,14 +28,19 @@
         </activity>
         <activity android:name=".activity.BaseActivity" />
         <activity
-            android:name=".utalkie.UTalkieActivity"
+            android:name=".talkie.TalkieActivity"
             android:label="UTalkie"
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+        <activity
+            android:name=".talkie.ChatActivity"
+            android:label="Chat"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
 
         <service
             android:name=".service.MyDaemonService"
             android:enabled="true"
-            android:exported="true"></service>
+            android:exported="true" />
+
     </application>
 
 </manifest>

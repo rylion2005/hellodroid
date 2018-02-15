@@ -1,12 +1,21 @@
 package com.hellodroid.activity;
 
 import android.Manifest;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+
+import com.hellodroid.lan.Scanner;
+import com.hellodroid.network.MyNetworkReceiver;
+import com.hellodroid.nio.SocketChanner;
+import com.hellodroid.service.MyDaemonService;
 
 import java.util.ArrayList;
 
@@ -28,6 +37,25 @@ public class BaseActivity extends AppCompatActivity {
 
     public static final int PERMISSION_REQUEST_CODE = 0xA00F;
 
+    // Network broadcast receiver
+    protected MyNetworkReceiver myNetworkReceiver;
+    protected MyNetworkReceiver.CallBack myNetworkReceiverCallback;
+
+    // Lan Scanner
+    protected Scanner mLanScanner;
+    protected Scanner.Callback mLanScannerCallback;
+
+    // SocketChanner
+    protected SocketChanner.Callback mySocketCallback;
+
+    // MyDaemonService
+    protected final ServiceConnection myServiceConnection = new MyServiceConnection();
+    protected MyDaemonService myDaemonService;
+
+
+/* ********************************************************************************************** */
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,6 +65,7 @@ public class BaseActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+
     }
 
     @Override
@@ -47,6 +76,8 @@ public class BaseActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        myNetworkReceiver.unregister();
+        unbindService(myServiceConnection);
     }
 
     @Override
@@ -72,6 +103,16 @@ public class BaseActivity extends AppCompatActivity {
 
     private void init(){
         initPermissions();
+
+        bindService(
+                new Intent(this, MyDaemonService.class),
+                myServiceConnection,
+                BIND_AUTO_CREATE);
+
+        myNetworkReceiver = MyNetworkReceiver.getInstance(this);
+        myNetworkReceiver.register(myNetworkReceiverCallback);
+
+        mLanScanner = Scanner.newInstance();
     }
 
     /**
@@ -105,6 +146,40 @@ public class BaseActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
         }else{
             Log.i(TAG, "all permissions are granted!");
+        }
+    }
+
+
+/* ********************************************************************************************** */
+/*
+    public class NetworkStatusCallback implements MyNetworkReceiver.CallBack {
+        @Override
+        public void onWifiConnectivity(boolean connected) {
+
+        }
+
+        @Override
+        public void onMobileConnectivity(boolean connected) {
+
+        }
+    }
+*/
+    public class MyServiceConnection implements ServiceConnection{
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.v(TAG, "onServiceConnected: " + name);
+            myDaemonService = ((MyDaemonService.MyBinder) service).getService();
+            myDaemonService.registerSocketCallback(mySocketCallback);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            Log.v(TAG, "onServiceDisconnected: " + name.toString());
+        }
+
+        @Override
+        public void onBindingDied(ComponentName name) {
+            Log.v(TAG, "onBindingDied: " + name.toString());
         }
     }
 }

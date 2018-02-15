@@ -86,7 +86,9 @@ public class MyNetworkReceiver extends BroadcastReceiver {
         intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mContext.registerReceiver(this, intentFilter);
 
-        mCallBackList.add(cb);
+        if (cb != null) {
+            mCallBackList.add(cb);
+        }
     }
 
     public void unregister(){

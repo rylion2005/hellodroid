@@ -57,6 +57,8 @@ public class SocketChanner extends Handler {
     public static final int MESSAGE_FILE_NAME = 0xD1;
     public static final int MESSAGE_TEXT = 0xD2;
 
+    private static SocketChanner mInstance;
+
     private List<String> mNeighborList = new ArrayList<>();
     private final static Object mNeighborLock = new Object();
     private List<String> mAvailableNeighbors = new ArrayList<>();
@@ -70,52 +72,33 @@ public class SocketChanner extends Handler {
     private final List<ByteBuffer> mOutgoingQueue = new ArrayList<>();
     private final List<byte[]> mIncomingQueue = new ArrayList<>();
 
-    private ChannelCallback  mCallback;
+    private final List<Callback>  mCallbackList = new ArrayList<>();
     private Context mContext;
 
 
 /* ********************************************************************************************** */
 
-
-    public SocketChanner(Context context){
+    private SocketChanner(Context context){
         mContext = context;
+        start();
     }
 
-    public void registerCallback(ChannelCallback cb){
-        mCallback = cb;
-    }
-
-    public void setNeighbors(ArrayList<String> neighbors){
-        synchronized (mNeighborLock) {
-            mNeighborList.clear();
-            mNeighborList.addAll(neighbors);
-
-            for (String ip : mNeighborList) {
-                Log.v(TAG, "IP:[" + ip + "]");
-            }
+    private SocketChanner(Context context, Callback cb){
+        mContext = context;
+        if (cb != null) {
+            mCallbackList.add(cb);
         }
+        start();
     }
 
-    public void start(){
-        mListener.start();
+    public static SocketChanner newInstance(Context context, Callback cb){
+        if (mInstance == null){
+            mInstance = new SocketChanner(context, cb);
+        }
+
+        return mInstance;
     }
 
-    /*
-    ** ---------------------------------------------------------------------------
-    ** handleMessage
-    **   message process center for outgoing and incoming data
-    **
-    ** @PARAM p1, IN:
-    ** @PARAM p2, OUT:
-    ** @RETURN boolean: true if success, otherwise false
-    ** @PARAM : None
-    ** @RETURN: None
-    **
-    ** NOTES:
-    **   ......
-    **
-    ** ---------------------------------------------------------------------------
-    */
     @Override
     public void handleMessage(Message msg) {
         Log.v(TAG, "handleMessage: " + msg.what);
@@ -145,6 +128,7 @@ public class SocketChanner extends Handler {
                 synchronized (mOutgoingQueueLock) {
                     // scan all neighbors
                     synchronized (mNeighborLock) {
+                        Log.v(TAG, "Neighbors: " + mNeighborList.size());
                         for (String host : mNeighborList) {
                             Sender sr = new Sender(host);
                             sr.cloneQueue(mOutgoingQueue);
@@ -161,6 +145,23 @@ public class SocketChanner extends Handler {
 
             default:
                 break;
+        }
+    }
+
+    public void register(Callback cb){
+        if (cb != null){
+            mCallbackList.add(cb);
+        }
+    }
+
+    public void setNeighbors(ArrayList<String> neighbors){
+        synchronized (mNeighborLock) {
+            mNeighborList.clear();
+            mNeighborList.addAll(neighbors);
+
+            for (String ip : mNeighborList) {
+                Log.v(TAG, "IP:[" + ip + "]");
+            }
         }
     }
 
@@ -209,6 +210,10 @@ public class SocketChanner extends Handler {
 
 /* ********************************************************************************************** */
 
+    private void start(){
+        mListener.start();
+    }
+
     private void enqueueOutgoings(ByteBuffer bb){
         Log.v(TAG, "enqueueOutgoings");
         synchronized (mOutgoingQueueLock){
@@ -225,11 +230,12 @@ public class SocketChanner extends Handler {
     }
 
     private void delivery(){
+        Log.v(TAG, "deliver incomings");
         synchronized (mIncomingQueueLock) {
             Log.v(TAG, "incoming queue = " + mIncomingQueue.size());
             for ( byte[] msg : mIncomingQueue ) {
-                if (mCallback != null){
-                    mCallback.onTextMessageArrived(new String(msg));
+                for ( Callback cb : mCallbackList ) {
+                    cb.onTextMessageArrived(new String(msg));
                 }
             }
             mIncomingQueue.clear();
@@ -279,6 +285,10 @@ public class SocketChanner extends Handler {
             }
         }
     }
+
+
+/* ********************************************************************************************** */
+
 
     class Reader implements Runnable {
 
@@ -379,6 +389,10 @@ public class SocketChanner extends Handler {
         }
     }
 
+
+/* ********************************************************************************************** */
+
+
     class Sender implements Runnable {
         private String mHost;
         private final List<ByteBuffer> mOutgoingQueue = new ArrayList<>();
@@ -422,6 +436,8 @@ public class SocketChanner extends Handler {
             mOutgoingQueue.addAll(source);
         }
     }
+
+/* ********************************************************************************************** */
 
     static class Wrapper{
         private static final int MAX_BUFFER_LENGTH = 1028;
@@ -500,8 +516,10 @@ public class SocketChanner extends Handler {
         }
     }
 
-    abstract public interface ChannelCallback {
-        abstract void onReadEvent(ByteBuffer bb);
-        abstract void onTextMessageArrived(String text);
+
+/* ********************************************************************************************** */
+
+    public interface Callback {
+        void onTextMessageArrived(String text);
     }
 }

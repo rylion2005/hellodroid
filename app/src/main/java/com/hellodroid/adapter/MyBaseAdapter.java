@@ -26,7 +26,11 @@ public class MyBaseAdapter extends BaseAdapter {
     private Context mContext;
     private int mLayoutResId;
 
-    public MyBaseAdapter(Context context, int resId) {
+    public static MyBaseAdapter newInstance(Context context, int resId){
+        return new MyBaseAdapter(context, resId);
+    }
+
+    private MyBaseAdapter(Context context, int resId) {
         mItemsList = new ArrayList<>();
         mContext = context;
         mLayoutResId = resId;
@@ -95,7 +99,7 @@ public class MyBaseAdapter extends BaseAdapter {
     **
     ** ---------------------------------------------------------------------------
     */
-    public ViewHolder createViewHolderInstance(){
+    public ViewHolder createHolder(){
         ViewHolder vh = new ViewHolder(mContext, mLayoutResId);
         getItemList().add(vh);
         return vh;

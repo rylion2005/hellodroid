@@ -62,12 +62,14 @@ public class Scanner extends Handler {
 
 /* ********************************************************************************************** */
 
+    private Scanner(){
+        Timer timer = new Timer();
+        timer.schedule(new Scanning(), 100, SCAN_PERIOD);
+    }
 
-    public static Scanner newInstance(Callback cb){
+    public static Scanner newInstance(){
         if (mInstance == null){
-            mInstance = new Scanner(cb);
-        } else {
-            mCallbackList.add(cb);
+            mInstance = new Scanner();
         }
         return mInstance;
     }
@@ -77,6 +79,7 @@ public class Scanner extends Handler {
         Log.v(TAG, "Message: " + msg.what);
         switch (msg.what) {
             case MESSAGE_UPDATE_ADDRESSES:
+                Log.v(TAG, "Callback List: " + mCallbackList.size());
                 for (Callback cb : mCallbackList){
                     cb.onUpdateNeighbors(getNeighbours());
                     cb.onUpdateLocalAddress(getMyLocalAddress());
@@ -85,6 +88,12 @@ public class Scanner extends Handler {
                 break;
 
             default:break;
+        }
+    }
+
+    public void register(Callback cb){
+        if (cb != null){
+            mCallbackList.add(cb);
         }
     }
 
@@ -102,15 +111,6 @@ public class Scanner extends Handler {
 
 
 /* ********************************************************************************************** */
-
-    private Scanner(Callback cb){
-        if ( cb != null ){
-            mCallbackList.add(cb);
-        }
-
-        Timer timer = new Timer();
-        timer.schedule(new Scanning(), 100, SCAN_PERIOD);
-    }
 
     private ArrayList<String> readArp() {
         ArrayList<String> ipList = new ArrayList<>();
@@ -147,7 +147,7 @@ public class Scanner extends Handler {
 
         @Override
         public void run() {
-            Log.v(TAG, ":Scanner: timer task running");
+            Log.v(TAG, ":Scanner: timer running");
 
             myLocalAddress = getLocalAddress();
             myNetworkAddress = getInternetAddress();
@@ -177,10 +177,6 @@ public class Scanner extends Handler {
                         dp.setAddress(InetAddress.getByName(address4));
                         socket.send(dp);
                         socket.close();
-                    } catch (SocketException e) {
-                        // TODO
-                    } catch (UnknownHostException e) {
-                        // TODO
                     } catch (IOException e) {
                         // TODO
                     }

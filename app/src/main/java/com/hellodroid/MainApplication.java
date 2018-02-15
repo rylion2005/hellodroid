@@ -2,8 +2,11 @@ package com.hellodroid;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.util.Log;
+
+import com.hellodroid.service.MyDaemonService;
 
 
 /*
@@ -62,5 +65,6 @@ public class MainApplication  extends Application  {
     ** ---------------------------------------------------------------------------
     */
     private void init(){
+        startService(new Intent(getApplicationContext(), MyDaemonService.class));
     }
 }

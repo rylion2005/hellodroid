@@ -1,26 +1,24 @@
-package com.hellodroid.utalkie;
+package com.hellodroid.talkie;
 
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-
+import java.util.ArrayList;
 import com.hellodroid.R;
+import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.lan.Scanner;
 
-import java.util.ArrayList;
 
-public class UTalkieActivity extends AppCompatActivity {
-    private static final String TAG = "UTalkieActivity";
+public class TalkieActivity extends BaseActivity {
+    private static final String TAG = "TalkieActivity";
 
     private SessionsFragment mSessionsFragment;
     private ContactsFragment mContactsFragment;
     private ProfileFragment mProfileFragment;
 
-    private final Scanner mLanScanner = Scanner.newInstance(new AddressUpdateCallback());
 
 /* ********************************************************************************************** */
 
@@ -30,6 +28,11 @@ public class UTalkieActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Log.v(TAG, "onCreate");
         setContentView(R.layout.activity_utalkie);
+
+        // Lan Scanner
+        mLanScannerCallback = new AddressUpdateCallback();
+        mLanScanner.register(mLanScannerCallback);
+
         initViews();
     }
 
@@ -104,6 +107,7 @@ public class UTalkieActivity extends AppCompatActivity {
         public void onUpdateNeighbors(ArrayList<String> neighbors) {
             Log.v(TAG, "onUpdateNeighbors: " + neighbors.size());
             mContactsFragment.updateContacts(neighbors);
+            myDaemonService.setNeighbors(neighbors);
         }
 
         @Override

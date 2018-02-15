@@ -1,4 +1,4 @@
-package com.hellodroid.utalkie;
+package com.hellodroid.talkie;
 
 import android.content.Context;
 import android.os.Bundle;
@@ -12,7 +12,6 @@ import android.widget.ListView;
 import com.hellodroid.R;
 import com.hellodroid.adapter.MyBaseAdapter;
 
-import java.util.List;
 
 
 public class SessionsFragment extends Fragment implements AdapterView.OnItemClickListener {
@@ -69,7 +68,7 @@ public class SessionsFragment extends Fragment implements AdapterView.OnItemClic
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
+        Log.v(TAG, "onItemClick: " + position);
     }
 
 /* ********************************************************************************************** */
@@ -81,7 +80,7 @@ public class SessionsFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     private void initListViews(View rootView){
-        mAdapter = new MyBaseAdapter(this.getActivity(), R.layout.fragment_session_list);
+        mAdapter = MyBaseAdapter.newInstance(this.getActivity(), R.layout.fragment_session_list);
 
         ListView lsv = rootView.findViewById(R.id.LSV_Sessions);
         lsv.setAdapter(mAdapter);
@@ -94,19 +93,19 @@ public class SessionsFragment extends Fragment implements AdapterView.OnItemClic
 
         mAdapter.clearItemList();
 
-        MyBaseAdapter.ViewHolder vh = mAdapter.createViewHolderInstance();
+        MyBaseAdapter.ViewHolder vh = mAdapter.createHolder();
         vh.setImageView(R.id.IMV_SessionLogo, R.mipmap.ic_session);
         vh.setTextView(R.id.TXV_SessionOriginator, "AAA");
         vh.setTextView(R.id.TXV_LastMessage, "MessageAAAAA.....");
         vh.setTextView(R.id.TXV_LastMessageTime, "16:43");
 
-        MyBaseAdapter.ViewHolder vh2 = mAdapter.createViewHolderInstance();
+        MyBaseAdapter.ViewHolder vh2 = mAdapter.createHolder();
         vh2.setImageView(R.id.IMV_SessionLogo, R.mipmap.ic_session);
         vh2.setTextView(R.id.TXV_SessionOriginator, "BBB");
         vh2.setTextView(R.id.TXV_LastMessage, "MessageBBBBBBBBBBBBB.....");
         vh2.setTextView(R.id.TXV_LastMessageTime, "20:07");
 
-        MyBaseAdapter.ViewHolder vh3 = mAdapter.createViewHolderInstance();
+        MyBaseAdapter.ViewHolder vh3 = mAdapter.createHolder();
         vh3.setImageView(R.id.IMV_SessionLogo, R.mipmap.ic_session);
         vh3.setTextView(R.id.TXV_SessionOriginator, "CCCCCC");
         vh3.setTextView(R.id.TXV_LastMessage, "MessageCCCCCCCCC.....");
