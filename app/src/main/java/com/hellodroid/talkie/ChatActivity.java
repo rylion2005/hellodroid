@@ -2,6 +2,8 @@ package com.hellodroid.talkie;
 
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -17,7 +19,7 @@ import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.adapter.MyBaseAdapter;
 import com.hellodroid.nio.SocketChanner;
 
-public class ChatActivity extends BaseActivity implements View.OnClickListener, AdapterView.OnItemClickListener{
+public class ChatActivity extends BaseActivity implements View.OnClickListener, AdapterView.OnItemClickListener , TextWatcher{
     private static final String TAG = "ChatActivity";
 
     private ImageView mIMVType;
@@ -28,6 +30,7 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
     private MyBaseAdapter mAdapter;
 
+    private boolean mMessageModeText = true;
 
 /* ********************************************************************************************** */
 
@@ -44,19 +47,17 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
-            case R.id.IMV_MessageType:
+            case R.id.IMV_MessageMode:
+                mMessageModeText = !mMessageModeText;
+                switchMessageMode(mMessageModeText);
                 break;
-            case R.id.EDT_Input:
-                // get focus and popup keyboard
-                v.setFocusable(true);
-                v.setFocusableInTouchMode(true);
-                v.requestFocus();
-                v.setVisibility(View.VISIBLE);
-                ((EditText)v).setShowSoftInputOnFocus(true);
 
-                // change action button
-                mBTNAction.setVisibility(View.VISIBLE);
-                mIMVMore.setVisibility(View.GONE);
+            case R.id.TXV_Talk:
+
+                break;
+
+            case R.id.EDT_Input:
+
                 break;
             case R.id.IMV_More:
                 break;
@@ -66,6 +67,7 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
                 // Send message
                 myDaemonService.sendText(mEDTText.getText().toString());
+                switchAction(false);
                 break;
             default:
                 break;
@@ -77,16 +79,29 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
     }
 
+    @Override
+    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
 
+    }
 
-/* ********************************************************************************************** */
+    @Override
+    public void onTextChanged(CharSequence s, int start, int before, int count) {
+
+    }
+
+    @Override
+    public void afterTextChanged(Editable s) {
+        switchAction(true);
+    }
+
+    /* ********************************************************************************************** */
 
     private void init(){
         mySocketCallback = new SocketMessageCallback();
     }
 
     private void initViews(){
-        mIMVType = findViewById(R.id.IMV_MessageType);
+        mIMVType = findViewById(R.id.IMV_MessageMode);
         mEDTText = findViewById(R.id.EDT_Input);
         mTXVTalk = findViewById(R.id.TXV_Talk);
         mIMVMore = findViewById(R.id.IMV_More);
@@ -99,6 +114,7 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
         mBTNAction.setOnClickListener(this);
 
         mEDTText.setFocusable(false);
+        mEDTText.addTextChangedListener(this);
 
         initListView();
     }
@@ -121,6 +137,34 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
         }
         vh.setTextView(R.id.TXV_TextMessage, text);
         mAdapter.notifyDataSetChanged();
+    }
+
+    private void switchAction(boolean isButton){
+        // change action button
+        if (isButton) {
+            mBTNAction.setVisibility(View.VISIBLE);
+            mIMVMore.setVisibility(View.GONE);
+        } else {
+            mIMVMore.setVisibility(View.VISIBLE);
+            mBTNAction.setVisibility(View.GONE);
+        }
+    }
+
+    private void switchMessageMode(boolean isTextMode){
+        if (isTextMode){
+            mIMVType.setImageResource(R.mipmap.chat_voice);
+            mTXVTalk.setVisibility(View.GONE);
+
+            mEDTText.setVisibility(View.VISIBLE);
+            mEDTText.setFocusable(true);
+            mEDTText.setFocusableInTouchMode(true);
+            mEDTText.requestFocus();
+            mEDTText.setShowSoftInputOnFocus(true);
+        } else {
+            mIMVType.setImageResource(R.mipmap.chat_text);
+            mEDTText.setVisibility(View.GONE);
+            mTXVTalk.setVisibility(View.VISIBLE);
+        }
     }
 
 
