@@ -38,8 +38,8 @@ public class BaseActivity extends AppCompatActivity {
     public static final int PERMISSION_REQUEST_CODE = 0xA00F;
 
     // Network broadcast receiver
-    protected MyNetworkReceiver myNetworkReceiver;
-    protected MyNetworkReceiver.CallBack myNetworkReceiverCallback;
+    //protected MyNetworkReceiver myNetworkReceiver;
+    //protected MyNetworkReceiver.CallBack myNetworkReceiverCallback;
 
     // Lan Scanner
     protected Scanner mLanScanner;
@@ -76,7 +76,6 @@ public class BaseActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        myNetworkReceiver.unregister();
         unbindService(myServiceConnection);
     }
 
@@ -109,8 +108,8 @@ public class BaseActivity extends AppCompatActivity {
                 myServiceConnection,
                 BIND_AUTO_CREATE);
 
-        myNetworkReceiver = MyNetworkReceiver.getInstance(this);
-        myNetworkReceiver.register(myNetworkReceiverCallback);
+        //myNetworkReceiver = MyNetworkReceiver.getInstance(this);
+        //myNetworkReceiver.register(myNetworkReceiverCallback);
 
         mLanScanner = Scanner.newInstance();
     }

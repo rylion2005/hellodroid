@@ -47,6 +47,9 @@ public class MainActivity extends BaseActivity {
         startActivity(new Intent(this, TalkieActivity.class));
     }
 
+    public void startAudio(View v){
+        startActivity(new Intent(this, AudioDemo.class));
+    }
 
 /* ============================================================================================== */
 

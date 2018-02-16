@@ -319,7 +319,7 @@ public class SocketChanner extends Handler {
                     mSocketChannel.close();
                 }
             } catch (IOException e) {
-                //TODO:
+                // TODO
             }
 
             Log.v(TAG, ":Reader: thread exit !");

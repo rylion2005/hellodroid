@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
@@ -41,6 +46,10 @@
             android:enabled="true"
             android:exported="true" />
 
+        <activity
+            android:name=".activity.AudioDemo"
+            android:label="@string/title_activity_audio_demo"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 
 </manifest>
