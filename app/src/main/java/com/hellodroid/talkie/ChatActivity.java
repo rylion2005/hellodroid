@@ -6,6 +6,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
@@ -17,9 +18,13 @@ import android.widget.TextView;
 import com.hellodroid.R;
 import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.adapter.MyBaseAdapter;
+import com.hellodroid.audio.MyAudioRecorder;
+import com.hellodroid.audio.MyAudioTracker;
 import com.hellodroid.nio.SocketChanner;
 
-public class ChatActivity extends BaseActivity implements View.OnClickListener, AdapterView.OnItemClickListener , TextWatcher{
+import java.nio.ByteBuffer;
+
+public class ChatActivity extends BaseActivity implements View.OnClickListener, AdapterView.OnItemClickListener , TextWatcher {
     private static final String TAG = "ChatActivity";
 
     private ImageView mIMVType;
@@ -94,13 +99,34 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
         switchAction(true);
     }
 
-    /* ********************************************************************************************** */
+    // TODO: text only
 
-    private void init(){
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        Log.v(TAG, "onKeyDown: " + keyCode);
+        boolean processed = false;
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP){
+            processed = true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN){
+            processed = true;
+        }
+        super.onKeyDown(keyCode, event);
+        return processed;
+    }
+
+
+
+
+/* ********************************************************************************************** */
+
+
+    private void init() {
         mySocketCallback = new SocketMessageCallback();
     }
 
-    private void initViews(){
+    private void initViews() {
         mIMVType = findViewById(R.id.IMV_MessageMode);
         mEDTText = findViewById(R.id.EDT_Input);
         mTXVTalk = findViewById(R.id.TXV_Talk);
@@ -119,27 +145,27 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
         initListView();
     }
 
-    private void initListView(){
+    private void initListView() {
         mAdapter = MyBaseAdapter.newInstance(this, R.layout.chat_message_list);
         ListView lsv = findViewById(R.id.LSV_Messages);
         lsv.setAdapter(mAdapter);
         lsv.setOnItemClickListener(this);
     }
 
-    private void showTextMessage(boolean isIncomingMessage, String text){
+    private void showTextMessage(boolean isIncomingMessage, String text) {
 
         MyBaseAdapter.ViewHolder vh = mAdapter.createHolder();
         TextView tv = vh.getConvertView().findViewById(R.id.TXV_TextMessage);
         if (isIncomingMessage) { // set text gravity
-            tv.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+            tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         } else {
-            tv.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+            tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         }
         vh.setTextView(R.id.TXV_TextMessage, text);
         mAdapter.notifyDataSetChanged();
     }
 
-    private void switchAction(boolean isButton){
+    private void switchAction(boolean isButton) {
         // change action button
         if (isButton) {
             mBTNAction.setVisibility(View.VISIBLE);
@@ -150,8 +176,8 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
         }
     }
 
-    private void switchMessageMode(boolean isTextMode){
-        if (isTextMode){
+    private void switchMessageMode(boolean isTextMode) {
+        if (isTextMode) {
             mIMVType.setImageResource(R.mipmap.chat_voice);
             mTXVTalk.setVisibility(View.GONE);
 
@@ -170,11 +196,23 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
 /* ********************************************************************************************** */
 
-    class SocketMessageCallback implements SocketChanner.Callback{
+    class SocketMessageCallback implements SocketChanner.Callback {
         @Override
         public void onTextMessageArrived(String text) {
             Log.v(TAG, "onTextMessageArrived: " + text);
             showTextMessage(true, text);
+        }
+
+        @Override
+        public void onStreamBufferArrived(ByteBuffer buffer) {
+            Log.v(TAG, "onStreamBufferArrived ");
+        }
+    }
+
+    class AudioRecordCallback implements MyAudioRecorder.Callback {
+        @Override
+        public void onBufferBytes(ByteBuffer bb) {
+
         }
     }
 }

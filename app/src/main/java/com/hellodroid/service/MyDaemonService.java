@@ -7,8 +7,11 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.hellodroid.audio.MyAudioRecorder;
+import com.hellodroid.audio.MyAudioTracker;
 import com.hellodroid.nio.SocketChanner;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 
@@ -29,6 +32,8 @@ public class MyDaemonService extends Service {
 
     private SocketChanner mSocketChanner;
 
+    private MyAudioRecorder mAudioRecord;
+    private MyAudioTracker mAudioTrack;
 
     public MyDaemonService() {
         Log.v(TAG, "new an instance");
@@ -100,11 +105,25 @@ public class MyDaemonService extends Service {
         mSocketChanner.sendText(text);
     }
 
+    // Audio related interfaces
+    public void startRecord(){
+        mAudioRecord.startRecord();
+    }
+
 
 /* ********************************************************************************************** */
 
     private void init(){
-        mSocketChanner = SocketChanner.newInstance(this, null);
+        mSocketChanner = SocketChanner.newInstance(this, new AudioTrackCallback());
+    }
+
+    private void initAudio(){
+        mAudioRecord = MyAudioRecorder.newInstance(this);
+        mAudioRecord.setMode(1);
+        mAudioRecord.register(new RecordCallback());
+
+        mAudioTrack = MyAudioTracker.newInstance(this);
+        mAudioTrack.setMode(1);
     }
 
 /* ********************************************************************************************** */
@@ -112,6 +131,25 @@ public class MyDaemonService extends Service {
     public class MyBinder extends Binder {
         public MyDaemonService getService(){
             return MyDaemonService.this;
+        }
+    }
+
+    public class RecordCallback implements MyAudioRecorder.Callback{
+        @Override
+        public void onBufferBytes(ByteBuffer bb) {
+            mSocketChanner.sendStream(bb);
+        }
+    }
+
+    public class AudioTrackCallback implements SocketChanner.Callback{
+        @Override
+        public void onTextMessageArrived(String text) {
+            // Nothing
+        }
+
+        @Override
+        public void onStreamBufferArrived(ByteBuffer buffer) {
+            mAudioTrack.play();
         }
     }
 }

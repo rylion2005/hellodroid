@@ -9,6 +9,7 @@ import android.util.Log;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /*
 **
@@ -24,9 +25,10 @@ public class MyAudioTracker {
 
     private static MyAudioTracker mInstance;
 
+    private int mMode = 0; //0: file; 1: stream
     private Context mContext;
     private String mFileName = "rdc.dat";
-    private final Thread mPlayingThread = new PlayingThread();
+    private final PlayingThread mPlayingThread = new PlayingThread();
 
 
 /* ********************************************************************************************** */
@@ -44,9 +46,25 @@ public class MyAudioTracker {
         return mInstance;
     }
 
+    public void setMode(int mode){
+        mMode = mode;
+    }
+
+    private void setByteBuffer(ByteBuffer bb){
+        mPlayingThread.setByteBuffer(bb);
+    }
+
     public void play(){
         Log.v(TAG, "play: " + mPlayingThread.getState().toString());
         mPlayingThread.start();
+    }
+
+    public void play(ByteBuffer bb){
+        Log.v(TAG, "play: " + mPlayingThread.getState().toString());
+        mPlayingThread.setByteBuffer(bb);
+        if (!mPlayingThread.isAlive()) {
+            mPlayingThread.start();
+        }
     }
 
     public void stop(){
@@ -69,34 +87,47 @@ public class MyAudioTracker {
         private int mBufferSizeInBytes;
 
         private FileInputStream fis;
+        private ByteBuffer mByteBuffer;
+
+        public void setByteBuffer(ByteBuffer bb){
+            mByteBuffer = bb;
+        }
 
         @Override
         public void run() {
             Log.v(TAG, ":playing: running ...");
 
             init();
+            mTrack.play();
 
             while(!isInterrupted()) {
-                try {
-                    mTrack.play();
+                int readBytes = 0;
+                byte[] bytes = null;
 
-                    int available;
-                    do {
-                        available = fis.available();
+                if (mMode == 0) {
+                    try {
+                        int available = fis.available();
                         Log.v(TAG, "available: " + available);
-                        byte[] bytes = new byte[mBufferSizeInBytes];
-                        int readBytes = fis.read(bytes);
-                        Log.v(TAG, "read: " + readBytes);
-                        mTrack.write(bytes, 0, readBytes);
-                    } while ((available > 0) && (!isInterrupted()));
-                    mTrack.stop();
-                    mTrack.release();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    break;
+                        if (available > 0) {
+                            bytes = new byte[mBufferSizeInBytes];
+                            readBytes = fis.read(bytes);
+                            Log.v(TAG, "read: " + readBytes);
+                        } else {
+                            break;
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                } else {
+                    bytes = mByteBuffer.array();
+                    readBytes = bytes.length;
                 }
+                mTrack.write(bytes, 0, readBytes);
             }
 
+            mTrack.stop();
+            mTrack.release();
             close();
             Log.v(TAG, ":playing: exit");
         }

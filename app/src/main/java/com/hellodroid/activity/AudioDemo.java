@@ -24,8 +24,6 @@ public class AudioDemo extends BaseActivity {
         setContentView(R.layout.activity_audio_demo);
 
         mRecord = MyAudioRecorder.newInstance(this);
-        mRecord.setRecordMode(0, null, "rdc.dat");
-
         mTrack = MyAudioTracker.newInstance(this);
     }
 

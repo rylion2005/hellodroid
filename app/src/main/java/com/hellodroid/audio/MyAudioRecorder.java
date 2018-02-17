@@ -123,15 +123,19 @@ public class MyAudioRecorder extends Handler{
     **
     ** ---------------------------------------------------------------------------
     */
-    public void setRecordMode(int mode, Callback cb, String fileName){
+    public void setMode(int mode){
         mRecordMode = mode;
+    }
 
+    public void register(Callback cb){
         if (cb != null) {
             mCallbackList.add(cb);
         }
+    }
 
-        if (fileName != null){
-            mFileName = fileName;
+    public void setFile(String name){
+        if (name != null){
+            mFileName = name;
         }
     }
 
@@ -228,11 +232,16 @@ public class MyAudioRecorder extends Handler{
 
         private void dispatch(ByteBuffer bb){
             Log.v(TAG, "dispatch: " + bb);
+            for (Callback cb : mCallbackList){
+                cb.onBufferBytes(bb);
+            }
+            /*
             synchronized (mBufferQueue) {
                 mBufferQueue.add(bb.duplicate());
             }
             Log.v(TAG, "sendEmptyMessage: " + INTERNAL_MESSAGE_READ_BYTES);
             sendEmptyMessage(INTERNAL_MESSAGE_READ_BYTES);
+            */
         }
 
         private void open(){
