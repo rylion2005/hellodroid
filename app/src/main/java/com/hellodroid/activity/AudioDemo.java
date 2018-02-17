@@ -26,7 +26,7 @@ public class AudioDemo extends BaseActivity {
         mRecord = MyAudioRecorder.newInstance(this);
         mRecord.setRecordMode(0, null, "rdc.dat");
 
-        mTrack = new MyAudioTracker(this);
+        mTrack = MyAudioTracker.newInstance(this);
     }
 
     public void startRecord(View v){
@@ -38,7 +38,7 @@ public class AudioDemo extends BaseActivity {
     }
 
     public void play(View v){
-        mTrack.play();
+        mTrack.play("rdc.dat");
     }
 
     public void stop(View v){
