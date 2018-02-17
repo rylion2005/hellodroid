@@ -24,18 +24,9 @@ public class MyAudioTracker {
 
     private static MyAudioTracker mInstance;
 
-    // Audio configurations
-    private final static int AUDIO_STREAM = AudioManager.STREAM_MUSIC;
-    private final static int AUDIO_SAMPLE_RATE = 44100; //44.1khz
-    private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
-    private final static int AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
-
     private Context mContext;
-    private AudioTrack mTrack;
-    private int mBufferSizeInBytes;
     private String mFileName = "rdc.dat";
-
-    private Thread mPlayThread;
+    private final Thread mPlayingThread = new PlayingThread();
 
 
 /* ********************************************************************************************** */
@@ -44,7 +35,6 @@ public class MyAudioTracker {
     private MyAudioTracker(Context context){
         Log.v(TAG, "new tracker");
         mContext = context;
-        init();
     }
 
     public static MyAudioTracker newInstance(Context context){
@@ -55,65 +45,94 @@ public class MyAudioTracker {
     }
 
     public void play(){
-        Log.v(TAG, "play");
-        mPlayThread.start();
-    }
-
-    public void play(String filename){
-        Log.v(TAG, "play: " + filename);
-        mFileName = filename;
-        mPlayThread.start();
+        Log.v(TAG, "play: " + mPlayingThread.getState().toString());
+        mPlayingThread.start();
     }
 
     public void stop(){
-        mPlayThread.interrupt();
-        mTrack.stop();
-        mTrack.release();
+        Log.v(TAG, "stop: " + mPlayingThread.getState().toString());
+        mPlayingThread.interrupt();
     }
 
 
 /* ********************************************************************************************** */
 
-    private void init(){
-        mBufferSizeInBytes = AudioTrack.getMinBufferSize(
-                AUDIO_SAMPLE_RATE,
-                AUDIO_CHANNEL,
-                AUDIO_ENCODING);
 
-        mTrack = new AudioTrack(
-                AUDIO_STREAM,
-                AUDIO_SAMPLE_RATE,
-                AUDIO_CHANNEL,
-                AUDIO_ENCODING,
-                mBufferSizeInBytes,
-                AudioTrack.MODE_STREAM);
+    class PlayingThread extends Thread {
+        // Audio configurations
+        private final static int AUDIO_STREAM = AudioManager.STREAM_MUSIC;
+        private final static int AUDIO_SAMPLE_RATE = 44100; //44.1khz
+        private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
+        private final static int AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
 
-        mPlayThread = new Thread(new PlayRunnable());
-    }
+        private AudioTrack mTrack;
+        private int mBufferSizeInBytes;
 
+        private FileInputStream fis;
 
-    class PlayRunnable implements Runnable {
         @Override
         public void run() {
-            Log.v(TAG, "Play: running ......");
-            try {
-                mTrack.play();
-                FileInputStream fileInputStream = mContext.openFileInput(mFileName);
-                int available;
-                do{
-                    available = fileInputStream.available();
-                    Log.v(TAG, "available: " + available);
-                    byte[] bytes = new byte[mBufferSizeInBytes];
-                    int readBytes = fileInputStream.read(bytes);
-                    Log.v(TAG, "read: " + readBytes);
-                    mTrack.write(bytes, 0, readBytes);
-                } while (available > 0);
-                mTrack.stop();
-                mTrack.release();
-            } catch (IOException e) {
-                //e.printStackTrace();
+            Log.v(TAG, ":playing: running ...");
+
+            init();
+
+            while(!isInterrupted()) {
+                try {
+                    mTrack.play();
+
+                    int available;
+                    do {
+                        available = fis.available();
+                        Log.v(TAG, "available: " + available);
+                        byte[] bytes = new byte[mBufferSizeInBytes];
+                        int readBytes = fis.read(bytes);
+                        Log.v(TAG, "read: " + readBytes);
+                        mTrack.write(bytes, 0, readBytes);
+                    } while ((available > 0) && (!isInterrupted()));
+                    mTrack.stop();
+                    mTrack.release();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    break;
+                }
             }
-            Log.v(TAG, ":Play: thread exit !");
+
+            close();
+            Log.v(TAG, ":playing: exit");
+        }
+
+        private void init(){
+            mBufferSizeInBytes = AudioTrack.getMinBufferSize(
+                    AUDIO_SAMPLE_RATE,
+                    AUDIO_CHANNEL,
+                    AUDIO_ENCODING);
+
+            mTrack = new AudioTrack(
+                    AUDIO_STREAM,
+                    AUDIO_SAMPLE_RATE,
+                    AUDIO_CHANNEL,
+                    AUDIO_ENCODING,
+                    mBufferSizeInBytes,
+                    AudioTrack.MODE_STREAM);
+
+            open();
+        }
+
+        private void open(){
+            try {
+                fis = mContext.openFileInput(mFileName);
+            } catch (IOException e) {
+                fis = null;
+                e.printStackTrace();
+            }
+        }
+
+        private void close(){
+            try {
+                fis.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

@@ -13,6 +13,7 @@ import android.os.Message;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -56,7 +57,6 @@ public class MyAudioRecorder extends Handler{
 
     // internal audio recording data queue
     private final List<ByteBuffer> mBufferQueue = new ArrayList<>();
-
     // Clients who wants to byte buffer
     private final List<Callback> mCallbackList = new ArrayList<>();
 
@@ -86,13 +86,8 @@ public class MyAudioRecorder extends Handler{
                 synchronized (mBufferQueue){
                     for (ByteBuffer bb : mBufferQueue){
                         Log.v(TAG, "record mode: " + mRecordMode);
-                        if (mRecordMode == 0){ //store into file
-                            writeFile(bb);
-                            bb.clear();
-                        } else { // delivery stream to client
-                            for (Callback cb : mCallbackList){
-                                cb.onBufferBytes(bb);
-                            }
+                        for (Callback cb : mCallbackList){
+                            cb.onBufferBytes(bb);
                         }
                     }
                     mBufferQueue.clear();
@@ -141,9 +136,14 @@ public class MyAudioRecorder extends Handler{
     }
 
     public void startRecord(){
-        Log.v(TAG, "Start record audio");
-        mRecord.startRecording();
-        startThread();
+        Log.v(TAG, "start");
+        if ( (mRecord != null)
+                && (mRecord.getState() != AudioRecord.STATE_UNINITIALIZED)
+                && (mRecord.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) ) {
+            mRecord.startRecording();
+        }
+
+        mRecordThread.start();
     }
 
     public void pauseRecord(){
@@ -154,88 +154,112 @@ public class MyAudioRecorder extends Handler{
     }
 
     public void stopRecord(){
-        Log.v(TAG, "stop record audio");
-        stopThread();
-        mRecord.stop();
-        mRecord.release();
+        Log.v(TAG, "stop");
+        mRecordThread.interrupt();
+        if ( (mRecord != null)
+             && (mRecord.getState() != AudioRecord.STATE_UNINITIALIZED)
+             && (mRecord.getRecordingState() != AudioRecord.RECORDSTATE_STOPPED) ) {
+            mRecord.stop();
+            mRecord.release();
+        }
     }
 
 
 /* ********************************************************************************************** */
 
     private void init(Context context){
+        Log.v(TAG, "init");
         mContext = context;
 
         mBufferSizeInBytes = AudioRecord.getMinBufferSize(
                 AUDIO_SAMPLE_RATE,
                 AUDIO_CHANNEL,
                 AUDIO_ENCODING);
-
+        Log.v(TAG, "mBufferSizeInBytes: " + mBufferSizeInBytes);
         mRecord = new AudioRecord(
                 AUDIO_INPUT,
                 AUDIO_SAMPLE_RATE,
                 AUDIO_CHANNEL,
                 AUDIO_ENCODING,
                 mBufferSizeInBytes);
-
-        mRecordThread = new Thread(new RecordingRunnable());
+        Log.v(TAG, "AudioRecord: " + mRecord.toString());
+        mRecordThread = new RecordingThread();
     }
-
-    private void writeFile(ByteBuffer bb){
-        Log.v(TAG, "writeFile: ByteBuffer=" + bb);
-        if ( (bb == null) || (bb.limit() == 0)){
-            Log.v(TAG, "ByteBuffer has nothing !!!");
-            return;
-        }
-
-        try {
-            FileOutputStream fos = mContext.openFileOutput(mFileName, Context.MODE_APPEND);
-            fos.write(bb.array());
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void startThread(){
-        Log.v(TAG, "start thread");
-        if ( !mRecordThread.isAlive() ){
-            mRecordThread.start();
-        }
-    }
-
-    private void stopThread(){
-        Log.v(TAG, "stop thread: " + mRecordThread.getState().toString());
-        //if (!mRecordThread.isInterrupted()){
-            mRecordThread.interrupt();
-        //}
-        Log.v(TAG, "Thread: " + mRecordThread.toString());
-    }
-
 
 /* ********************************************************************************************** */
 
 
-    class RecordingRunnable implements Runnable {
+    class RecordingThread extends Thread {
+        FileOutputStream fos;
+
         @Override
         public void run() {
-            Log.v(TAG, ":Record: running ......");
-            while (true) {
-                ByteBuffer bb = ByteBuffer.allocate(mBufferSizeInBytes);
-                int readBytes = mRecord.read(bb, mBufferSizeInBytes);
-                Log.v(TAG, "bbb: " + bb);
-                synchronized (mBufferQueue) {
-                    mBufferQueue.add(bb);
-                }
-                sendEmptyMessage(INTERNAL_MESSAGE_READ_BYTES);
+            Log.v(TAG, ":recording: running ......");
 
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Log.v(TAG, "Sleep Exception");
-                    //e. printStackTrace();
-                    break;
+            if (mRecordMode == 0) {
+                open();
+            }
+
+            ByteBuffer bb = ByteBuffer.allocate(mBufferSizeInBytes);
+            byte[] bytes = new byte[mBufferSizeInBytes];
+
+            while (!isInterrupted()) {
+                int readBytes = mRecord.read(bytes, 0, mBufferSizeInBytes);
+                Log.v(TAG, "read: " + readBytes);
+                if (readBytes > 0) {
+                    bb.put(bytes);
+                    bb.rewind();
+                    if (mRecordMode == 0) {
+                        save(bb);
+                    } else {
+                        dispatch(bb);
+                    }
                 }
+                bb.rewind();
+                bb.clear();
+            }
+
+            if (mRecordMode == 0) {
+                close();
+            }
+
+            Log.v(TAG, ":recording: exit ...");
+        }
+
+        private void dispatch(ByteBuffer bb){
+            Log.v(TAG, "dispatch: " + bb);
+            synchronized (mBufferQueue) {
+                mBufferQueue.add(bb.duplicate());
+            }
+            Log.v(TAG, "sendEmptyMessage: " + INTERNAL_MESSAGE_READ_BYTES);
+            sendEmptyMessage(INTERNAL_MESSAGE_READ_BYTES);
+        }
+
+        private void open(){
+            Log.v(TAG, "open: " + mFileName);
+            try{
+                mContext.deleteFile(mFileName);
+                fos = mContext.openFileOutput(mFileName, Context.MODE_APPEND);
+            } catch (IOException e){
+                e.printStackTrace();
+            }
+        }
+
+        private void save(ByteBuffer bb){
+            Log.v(TAG, "save: bb=" + bb);
+            try {
+                fos.write(bb.array());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void close(){
+            Log.v(TAG, "close");
+            try {
+                fos.close();
+            } catch (IOException e){
+                e.printStackTrace();
             }
         }
     }

@@ -38,7 +38,7 @@ public class AudioDemo extends BaseActivity {
     }
 
     public void play(View v){
-        mTrack.play("rdc.dat");
+        mTrack.play();
     }
 
     public void stop(View v){
