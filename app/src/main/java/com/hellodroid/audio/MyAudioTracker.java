@@ -24,46 +24,42 @@ public class MyAudioTracker {
     private static final String TAG = "MyAudioTracker";
 
     private static MyAudioTracker mInstance;
-
-    private int mMode = 0; //0: file; 1: stream
-    private Context mContext;
-    private String mFileName = "rdc.dat";
     private final PlayingThread mPlayingThread = new PlayingThread();
 
 
 /* ********************************************************************************************** */
 
 
-    private MyAudioTracker(Context context){
+    private MyAudioTracker(){
         Log.v(TAG, "new tracker");
-        mContext = context;
     }
 
-    public static MyAudioTracker newInstance(Context context){
+    public static MyAudioTracker newInstance(){
         if (mInstance == null){
-            mInstance = new MyAudioTracker(context);
+            mInstance = new MyAudioTracker();
         }
         return mInstance;
     }
 
     public void setMode(int mode){
-        mMode = mode;
-    }
-
-    private void setByteBuffer(ByteBuffer bb){
-        mPlayingThread.setByteBuffer(bb);
-    }
-
-    public void play(){
-        Log.v(TAG, "play: " + mPlayingThread.getState().toString());
-        mPlayingThread.start();
+        mPlayingThread.set(mode);
     }
 
     public void play(ByteBuffer bb){
-        Log.v(TAG, "play: " + mPlayingThread.getState().toString());
-        mPlayingThread.setByteBuffer(bb);
-        if (!mPlayingThread.isAlive()) {
-            mPlayingThread.start();
+        if (mPlayingThread.getMode() == 1) {
+            mPlayingThread.set(bb);
+            if (!mPlayingThread.isAlive()) {
+                mPlayingThread.start();
+            }
+        }
+    }
+
+    public void play(Context context, String fileName){
+        if (mPlayingThread.getMode() == 0) {
+            mPlayingThread.set(context, fileName);
+            if (!mPlayingThread.isAlive()) {
+                mPlayingThread.start();
+            }
         }
     }
 
@@ -86,19 +82,19 @@ public class MyAudioTracker {
         private AudioTrack mTrack;
         private int mBufferSizeInBytes;
 
-        private FileInputStream fis;
-        private ByteBuffer mByteBuffer;
+        private int mMode = 0; //0: file; 1: stream
 
-        public void setByteBuffer(ByteBuffer bb){
-            mByteBuffer = bb;
-        }
+        private Context mContext;
+        private String mFileName = "record.pcm";
+        private FileInputStream fis;
+
+        private ByteBuffer mByteBuffer;
 
         @Override
         public void run() {
             Log.v(TAG, ":playing: running ...");
 
             init();
-            mTrack.play();
 
             while(!isInterrupted()) {
                 int readBytes = 0;
@@ -126,13 +122,13 @@ public class MyAudioTracker {
                 mTrack.write(bytes, 0, readBytes);
             }
 
-            mTrack.stop();
-            mTrack.release();
-            close();
+            end();
             Log.v(TAG, ":playing: exit");
         }
 
         private void init(){
+            Log.v(TAG, "init");
+
             mBufferSizeInBytes = AudioTrack.getMinBufferSize(
                     AUDIO_SAMPLE_RATE,
                     AUDIO_CHANNEL,
@@ -146,24 +142,57 @@ public class MyAudioTracker {
                     mBufferSizeInBytes,
                     AudioTrack.MODE_STREAM);
 
-            open();
-        }
+            if ( (mTrack != null)
+                    && (mTrack.getState() != AudioTrack.STATE_UNINITIALIZED)
+                    && (mTrack.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) ) {
+                mTrack.play();
+            }
 
-        private void open(){
-            try {
-                fis = mContext.openFileInput(mFileName);
-            } catch (IOException e) {
-                fis = null;
-                e.printStackTrace();
+            if (mMode == 0) {
+                try {
+                    fis = mContext.openFileInput(mFileName);
+                } catch (IOException e) {
+                    fis = null;
+                    //e.printStackTrace();
+                }
             }
         }
 
-        private void close(){
-            try {
-                fis.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+        private void end(){
+            if (mMode == 0) {
+                try {
+                    fis.close();
+                } catch (IOException e) {
+                    //e.printStackTrace();
+                }
             }
+
+            if ( (mTrack != null)
+                    && (mTrack.getState() != AudioTrack.STATE_UNINITIALIZED)) {
+                mTrack.play();
+            }
+        }
+
+        private void set(int mode){
+            mMode = mode;
+        }
+
+        private int getMode(){
+            return mMode;
+        }
+
+        private void set(Context context, String fileName){
+            if (context != null){
+                mContext = context;
+            }
+
+            if (fileName != null){
+                mFileName = fileName;
+            }
+        }
+
+        private void set(ByteBuffer bb){
+            mByteBuffer = bb;
         }
     }
 }

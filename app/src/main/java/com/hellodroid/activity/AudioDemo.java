@@ -23,20 +23,23 @@ public class AudioDemo extends BaseActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_audio_demo);
 
-        mRecord = MyAudioRecorder.newInstance(this);
-        mTrack = MyAudioTracker.newInstance(this);
+        mRecord = MyAudioRecorder.newInstance();
+        mRecord.setMode(0);
+        mRecord.set(this, "audio.pcm");
+        mTrack = MyAudioTracker.newInstance();
+        mTrack.setMode(0);
     }
 
     public void startRecord(View v){
-        mRecord.startRecord();
+        mRecord.start();
     }
 
     public void stopRecord(View v){
-        mRecord.stopRecord();
+        mRecord.stop();
     }
 
     public void play(View v){
-        mTrack.play();
+        mTrack.play(this, "audio.pcm");
     }
 
     public void stop(View v){

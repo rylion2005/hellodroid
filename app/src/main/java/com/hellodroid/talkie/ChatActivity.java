@@ -37,6 +37,8 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
     private boolean mMessageModeText = true;
 
+    private static boolean mTalkStop = false;
+
 /* ********************************************************************************************** */
 
 
@@ -58,7 +60,8 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
                 break;
 
             case R.id.TXV_Talk:
-
+                mTalkStop = !mTalkStop;
+                myDaemonService.record(mTalkStop);
                 break;
 
             case R.id.EDT_Input:
@@ -97,23 +100,6 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
     @Override
     public void afterTextChanged(Editable s) {
         switchAction(true);
-    }
-
-    // TODO: text only
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        Log.v(TAG, "onKeyDown: " + keyCode);
-        boolean processed = false;
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP){
-            processed = true;
-        }
-
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN){
-            processed = true;
-        }
-        super.onKeyDown(keyCode, event);
-        return processed;
     }
 
 
@@ -198,21 +184,8 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
     class SocketMessageCallback implements SocketChanner.Callback {
         @Override
-        public void onTextMessageArrived(String text) {
-            Log.v(TAG, "onTextMessageArrived: " + text);
-            showTextMessage(true, text);
-        }
-
-        @Override
-        public void onStreamBufferArrived(ByteBuffer buffer) {
-            Log.v(TAG, "onStreamBufferArrived ");
-        }
-    }
-
-    class AudioRecordCallback implements MyAudioRecorder.Callback {
-        @Override
-        public void onBufferBytes(ByteBuffer bb) {
-
+        public void onByteBuffer(ByteBuffer buffer) {
+            //showTextMessage(true, text);
         }
     }
 }
