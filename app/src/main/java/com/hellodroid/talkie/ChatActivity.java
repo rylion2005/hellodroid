@@ -183,6 +183,12 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 /* ********************************************************************************************** */
 
     class SocketMessageCallback implements SocketChanner.Callback {
+
+        @Override
+        public void onIncomingFile(String name) {
+
+        }
+
         @Override
         public void onByteBuffer(ByteBuffer buffer) {
             //showTextMessage(true, text);

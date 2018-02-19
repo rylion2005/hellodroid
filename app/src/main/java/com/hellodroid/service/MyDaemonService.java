@@ -109,13 +109,13 @@ public class MyDaemonService extends Service {
     // Audio operations
     public void record(boolean start){
         if (start){
-            mAudioRecord.start();
+            //mAudioRecord.start();
         } else {
             // stop record
-            mAudioRecord.stop();
+            ///mAudioRecord.stop();
 
             // stop stream
-            mSocketChanner.stopStream();
+            //mSocketChanner.destroyStream();
         }
     }
 
@@ -123,7 +123,8 @@ public class MyDaemonService extends Service {
 /* ********************************************************************************************** */
 
     private void initSocket(){
-        mSocketChanner = SocketChanner.newInstance(new AudioIncomingCallback());
+        mSocketChanner = SocketChanner.newInstance();
+        mSocketChanner.register(new AudioIncomingCallback());
     }
 
     private void initAudio(){
@@ -148,17 +149,21 @@ public class MyDaemonService extends Service {
             Log.v(TAG, "onBufferBytes: " + buffer.toString());
 
             // send buffer to socket
-            mSocketChanner.sendStream(buffer);
+            mSocketChanner.startStreams(buffer);
         }
     }
 
     public class AudioIncomingCallback implements SocketChanner.Callback{
+        @Override
+        public void onIncomingFile(String name) {
+
+        }
 
         @Override
         public void onByteBuffer(ByteBuffer buffer) {
             Log.v(TAG, "onByteBuffer: " + buffer.toString());
             // send buffer to audio track
-            mAudioTrack.play(buffer);
+            //mAudioTrack.play(buffer);
         }
     }
 }

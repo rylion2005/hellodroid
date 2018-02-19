@@ -49,7 +49,8 @@
         <activity
             android:name=".activity.AudioDemo"
             android:label="@string/title_activity_audio_demo"
-            android:theme="@style/AppTheme.NoActionBar"></activity>
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity android:name=".nio.SocketChannelDemo"></activity>
     </application>
 
 </manifest>

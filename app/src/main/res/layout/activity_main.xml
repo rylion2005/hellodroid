@@ -20,25 +20,18 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
         android:textAllCaps="false"
+        android:text="Socket Channel"
+        android:onClick="startSocketChannel"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:textAllCaps="false"
         android:text="Audio"
         android:onClick="startAudio"/>
 
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="vertical"
-        android:fillViewport="true">
-        <TextView
-            android:id="@+id/TXV_TextContents"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:paddingStart="8dp"
-            android:scrollbars="vertical"
-            android:maxLines="9999"
-            android:background="#708090"/>
-    </ScrollView>>
 
 </LinearLayout>
