@@ -26,8 +26,7 @@ public class AudioDemo extends BaseActivity {
         mRecord = MyAudioRecorder.newInstance();
         mRecord.setMode(0);
         mRecord.set(this, "audio.pcm");
-        mTrack = MyAudioTracker.newInstance();
-        mTrack.setMode(0);
+        mTrack = MyAudioTracker.newInstance(MyAudioTracker.PLAY_MODE_FILE);
     }
 
     public void startRecord(View v){

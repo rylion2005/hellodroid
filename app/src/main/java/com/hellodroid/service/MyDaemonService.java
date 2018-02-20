@@ -128,8 +128,7 @@ public class MyDaemonService extends Service {
         mAudioRecord = MyAudioRecorder.newInstance();
         mAudioRecord.setMode(1);
         mAudioRecord.register(new AudioRecordCallback());
-        mAudioTrack = MyAudioTracker.newInstance();
-        mAudioRecord.setMode(1);
+        mAudioTrack = MyAudioTracker.newInstance(MyAudioTracker.PLAY_MODE_STREAM);
     }
 
 /* ********************************************************************************************** */

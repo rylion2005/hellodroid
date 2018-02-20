@@ -44,7 +44,7 @@ public class SocketChannelDemo extends AppCompatActivity {
     public void startStream(View v){
 
         mRunning = true;
-        mSocketChanner.prepareStream();
+        //mSocketChanner.prepareStream();
         while (mRunning){
             ByteBuffer bb = ByteBuffer.allocate(1024);
             bb.put("ooooooooooooooooooooo".getBytes());
@@ -53,10 +53,11 @@ public class SocketChannelDemo extends AppCompatActivity {
             bb.clear();
 
             try {
-                Thread.sleep(1000);
+                Thread.sleep(5000);
             } catch (InterruptedException e) {
                 //
             }
+
         }
     }
 

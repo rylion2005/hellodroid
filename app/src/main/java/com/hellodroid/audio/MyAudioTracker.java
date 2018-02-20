@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 public class MyAudioTracker {
     private static final String TAG = "MyAudioTracker";
 
+    public static final int PLAY_MODE_FILE = 0;
+    public static final int PLAY_MODE_STREAM = 1;
+
     private static MyAudioTracker mInstance;
     private final PlayingThread mPlayingThread = new PlayingThread();
 
@@ -30,37 +33,34 @@ public class MyAudioTracker {
 /* ********************************************************************************************** */
 
 
-    private MyAudioTracker(){
+    private MyAudioTracker(int mode){
         Log.v(TAG, "new tracker");
+        mPlayingThread.setMode(mode);
     }
 
-    public static MyAudioTracker newInstance(){
+    public static MyAudioTracker newInstance(int mode){
         if (mInstance == null){
-            mInstance = new MyAudioTracker();
+            mInstance = new MyAudioTracker(mode);
         }
         return mInstance;
     }
 
     public void setMode(int mode){
-        mPlayingThread.set(mode);
+        mPlayingThread.setMode(mode);
     }
 
     public void play(ByteBuffer bb){
         Log.v(TAG, "play: " + bb);
-        if (mPlayingThread.getMode() == 1) {
-            mPlayingThread.set(bb);
-            if (!mPlayingThread.isAlive()) {
-                mPlayingThread.start();
-            }
+        mPlayingThread.flush(bb);
+        if (!mPlayingThread.isAlive()){
+            mPlayingThread.start();
         }
     }
 
     public void play(Context context, String fileName){
-        if (mPlayingThread.getMode() == 0) {
-            mPlayingThread.set(context, fileName);
-            if (!mPlayingThread.isAlive()) {
-                mPlayingThread.start();
-            }
+        mPlayingThread.set(context, fileName);
+        if (!mPlayingThread.isAlive()){
+            mPlayingThread.start();
         }
     }
 
@@ -82,8 +82,7 @@ public class MyAudioTracker {
 
         private AudioTrack mTrack;
         private int mBufferSizeInBytes;
-
-        private int mMode = 0; //0: file; 1: stream
+        private int mMode = PLAY_MODE_FILE;
 
         private Context mContext;
         private String mFileName = "record.pcm";
@@ -101,7 +100,7 @@ public class MyAudioTracker {
                 int readBytes = 0;
                 byte[] bytes = null;
 
-                if (mMode == 0) {
+                if (mMode == PLAY_MODE_FILE) {
                     try {
                         int available = fis.available();
                         Log.v(TAG, "available: " + available);
@@ -109,6 +108,8 @@ public class MyAudioTracker {
                             bytes = new byte[mBufferSizeInBytes];
                             readBytes = fis.read(bytes);
                             Log.v(TAG, "read: " + readBytes);
+                            Log.v(TAG, "write: " + readBytes);
+                            mTrack.write(bytes, 0, readBytes);
                         } else {
                             break;
                         }
@@ -117,11 +118,13 @@ public class MyAudioTracker {
                         break;
                     }
                 } else {
-                    bytes = mByteBuffer.array();
-                    readBytes = bytes.length;
+                    if(mByteBuffer.remaining() > 0) {
+                        bytes = mByteBuffer.array();
+                        int count = mTrack.write(bytes, 0, bytes.length);
+                        mByteBuffer.position(mByteBuffer.limit());;
+                        Log.v(TAG, "write/" + count + "/: " + mByteBuffer.toString());
+                    }
                 }
-                Log.v(TAG, "write: " + readBytes);
-                mTrack.write(bytes, 0, readBytes);
             }
 
             end();
@@ -175,12 +178,8 @@ public class MyAudioTracker {
             }
         }
 
-        private void set(int mode){
+        private void setMode(int mode){
             mMode = mode;
-        }
-
-        private int getMode(){
-            return mMode;
         }
 
         private void set(Context context, String fileName){
@@ -193,7 +192,7 @@ public class MyAudioTracker {
             }
         }
 
-        private void set(ByteBuffer bb){
+        private void flush(ByteBuffer bb){
             mByteBuffer = bb.duplicate();
         }
     }
