@@ -38,10 +38,6 @@ import java.util.List;
 public class SocketChanner {
     private static final String TAG = "SocketChanner";
 
-    public static final int SOCKET_MODE_MESSAGE = 0xA0;
-    public static final int SOCKET_MODE_STREAM_FILE = 0xA1;
-    public static final int SOCKET_MODE_STREAM_BYTE = 0xA2;
-
     private static final int SOCKET_PORT = 8866;
 
     private static SocketChanner mInstance;
@@ -52,21 +48,14 @@ public class SocketChanner {
 
     // listener thread
     private final Listener mListener = new Listener();
-    private final List<Sender> mSenderPool = new ArrayList<>();
-    private boolean mFirstStream = true;
+    private final Sender mSender = new Sender();
 
-    /*
-    ** only one reader is allowed to be in stream mode.
-    ** if reader is in stream mode, sender can not be in stream mode.
-    ** if reader is not in stream mode, sender can support more than one stream threads
-    */
-    private int mReaderMode = SOCKET_MODE_MESSAGE;
-    private int mSenderMode = SOCKET_MODE_MESSAGE;
 
 /* ********************************************************************************************** */
 
     private SocketChanner(){
         mListener.start();
+        //mSender.start();
     }
 
     public static SocketChanner newInstance(){
@@ -77,23 +66,15 @@ public class SocketChanner {
         return mInstance;
     }
 
-    public void register(Callback cb){
-        mListener.register(cb);
-    }
-
-    public void register(Handler h){
-        mListener.register(h);
+    public void register(Callback cb, Handler h){
+        mListener.register(cb, h);
     }
 
     public void setNeighbors(ArrayList<String> neighbors){
-        Log.v(TAG, "setNeighbors: " + neighbors.size());
+        //Log.v(TAG, "setNeighbors: " + neighbors.size());
         synchronized (mNeighborLock) {
             mNeighborList.clear();
             mNeighborList.addAll(neighbors);
-
-            for (String ip : mNeighborList) {
-                Log.v(TAG, "IP:[" + ip + "]");
-            }
         }
     }
 
@@ -102,41 +83,62 @@ public class SocketChanner {
         ByteBuffer bb = Wrapper.wrap(text);
 
         for (String ip : mNeighborList){
-            Sender s = new Sender(ip, SOCKET_MODE_MESSAGE);
+            Sender s = new Sender();
+            s.setHost(ip);
+            s.setSocketMode(Sender.SOCKET_MODE_MESSAGE);
             s.flush(bb);
             s.start();
         }
         bb.clear();
     }
 
-    public void prepareStreams(int streamType, String fileName){
-        if (mSenderPool.isEmpty()){
-            for (String ip : mNeighborList){
-                ByteBuffer buffer = Wrapper.wrap(streamType, fileName);
-                Sender s = new Sender(ip, streamType);
-                s.flush(buffer);
-                buffer.clear();
-                s.start();
-                mSenderPool.add(s);
-            }
+    public void prepareStream(String fileName){
+        Log.v(TAG, "prepareStream");
+        ByteBuffer bb = Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_FILE, fileName);
+        mSender.setHost("10.10.10.101");
+        mSender.setSocketMode(Sender.SOCKET_MODE_STREAM);
+        mSender.flush(bb);
+        mSender.start();
+    }
+
+    public void prepareStream(){
+        Log.v(TAG, "prepareStream");
+        ByteBuffer bb = Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_BYTE);
+        mSender.setHost("10.10.10.101");
+        mSender.setSocketMode(Sender.SOCKET_MODE_STREAM);
+        mSender.flush(bb);
+        mSender.start();
+    }
+
+    public void sendStream(ByteBuffer bb){
+        Log.v(TAG, "sendStream: " + bb.toString());
+        Log.v(TAG, "Sender: state=" + mSender.getState().toString());
+        if (!mSender.isAlive()){
+            // discard th first frames
+            prepareStream();
+        } else {
+            mSender.flush(bb);
         }
     }
 
-    public void startStreams(ByteBuffer bb){
-        for (Sender s : mSenderPool) {
-            s.flush(bb);
-        }
-    }
-
-    public void stopStreams(){
-        for (Sender s : mSenderPool){
-            s.setStopFlag();
-        }
-        mSenderPool.clear();
+    public void stopStream(){
+        Log.v(TAG, "stopStream");
+        mSender.flush(Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_ENDING));
     }
 
 
 /* ********************************************************************************************** */
+    private void dumpThread(Thread t){
+        Log.v(TAG, " <<<<<<<<<< Thread >>>>>>>>>>");
+        Log.v(TAG, "Thread: " + t.toString());
+        Log.v(TAG, "ID: " + t.getId());
+        Log.v(TAG, "Name: " + t.getName());
+        Log.v(TAG, "Priority: " + t.getPriority());
+        Log.v(TAG, "State: " + t.getState().toString());
+        Log.v(TAG, "isAlive: " + t.isAlive());
+        Log.v(TAG, "isInterrupted: " + t.isInterrupted());
+        Log.v(TAG, " <<<<<<<<<<        >>>>>>>>>>");
+    }
 
     private void dumpByteBuffer(ByteBuffer bb){
         Log.v(TAG, ">>>>>>>>>>");
@@ -157,9 +159,6 @@ public class SocketChanner {
         private final int STATE_READY = 0xC0;
         private final int STATE_WAIT_ENDING = 0xCD;
 
-        SocketChannel mSocketChannel;
-        //TODO: only one stream thread is support now
-        private Reader mStreamReader;
         private final List<Callback> mCallbackList = new ArrayList<>();
         private final List<Handler> mHandlerList = new ArrayList<>();
 
@@ -170,6 +169,16 @@ public class SocketChanner {
             mState = STATE_READY;
         }
 
+        private void register(Callback cb, Handler h){
+            if (cb != null){
+                mCallbackList.add(cb);
+            }
+
+            if (h != null){
+                mHandlerList.add(h);
+            }
+        }
+
         @Override
         public void run() {
             Log.v(TAG, ":Listener: running");
@@ -178,35 +187,28 @@ public class SocketChanner {
                 ServerSocketChannel ssc = ServerSocketChannel.open();
                 ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
                 while (true) { // Listener always alive !
-                    Log.v(TAG, ":Listener: waiting ......");
-                    mSocketChannel = ssc.accept();
-                    Log.v(TAG, ":Listener: accept= " + mSocketChannel.socket().toString());
-                    if (mStreamReader == null){ // no any stream, dispatch message.
-                        ByteBuffer bb =  ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
-                        int count = mSocketChannel.read(bb);
+                    SocketChannel sc = ssc.accept();
+                    Log.v(TAG, ":Listener: accept= " + sc.socket().toString());
+                    ByteBuffer bb =  ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
+                    int count;
+                    do {
+                        bb.clear();
+                        bb.rewind();
+                        count = sc.read(bb);
+                        Log.v(TAG, ":Listener: read/" + count + "/: " + bb.toString());
                         if (count > 0) {
                             bb.flip();
                             handleStateMachine(bb);
+                        } else {
+                            break;
                         }
-                        bb.clear();
-                    }
+                    } while (count > 0);
+                    bb.clear();
                 }
             } catch (IOException e){
                 Log.v(TAG, ":Listener: thread died");
             }
             Log.v(TAG, ":Listener: exit ...");
-        }
-
-        private void register(Callback cb){
-            if (cb != null){
-                mCallbackList.add(cb);
-            }
-        }
-
-        private void register(Handler h){
-            if (h != null){
-                mHandlerList.add(h);
-            }
         }
 
         private void handleStateMachine(ByteBuffer bb) {
@@ -218,25 +220,18 @@ public class SocketChanner {
                     switch (header) {
                         case Wrapper.BUFFER_TYPE_HEART_BEAT:
                             // discard here
-                            Log.v(TAG, "Heart Beat ...");
+                            Log.v(TAG, "HEART BEAT ...");
                             mState = STATE_READY;
                             break;
 
                         case Wrapper.BUFFER_TYPE_STREAM_FILE:
                             Log.v(TAG, "FILE name ...");
                             String name = new String(Wrapper.unwrapContentBytes(bb));
-                            mStreamReader = new Reader(mSocketChannel);
-                            mStreamReader.setNotifiers(mCallbackList, mHandlerList);
-                            mStreamReader.setFileName(name);
-                            mStreamReader.start();
                             mState = STATE_WAIT_ENDING;
                             break;
 
                         case Wrapper.BUFFER_TYPE_STREAM_BYTE:
-                            //TODO: stream mode, do not accept any message
-                            mStreamReader = new Reader(mSocketChannel);
-                            mStreamReader.setNotifiers(mCallbackList, mHandlerList);
-                            mStreamReader.start();
+                            Log.v(TAG, "BYTE ...");
                             mState = STATE_WAIT_ENDING;
                             break;
 
@@ -256,12 +251,12 @@ public class SocketChanner {
                     break;
 
                 case STATE_WAIT_ENDING:
+                    Log.v(TAG, ":Listener: waiting bytes");
                     if (header == Wrapper.BUFFER_TYPE_STREAM_ENDING){
                         Log.v(TAG, "stream ending");
-                        mReaderMode = SOCKET_MODE_MESSAGE;
                         mState = STATE_READY;
-                        mStreamReader.setStop();
-                        mStreamReader = null;
+                    }else{
+                        dispatch(Wrapper.cutContent(bb));
                     }
                     break;
 
@@ -278,7 +273,7 @@ public class SocketChanner {
                 cb.onByteBuffer(bb.duplicate());
                 cb.onIncomingFile(null);
             }
-
+/*
             Log.v(TAG, "dispatch: handler=" + mHandlerList.size());
             for (Handler h : mHandlerList){
                 Message m = new Message();
@@ -288,125 +283,55 @@ public class SocketChanner {
                 m.setData(b);
                 h.sendMessage(m);
             }
+*/
         }
     }
-
-
-/* ********************************************************************************************** */
-
-
-    class Reader extends Thread {
-        private boolean mStop = false;
-        private SocketChannel mSocketChannel;
-        private final List<Callback> mCallbacks = new ArrayList<>();
-        private final List<Handler> mHandlers = new ArrayList<>();
-        private String mFileName;
-        private final ByteBuffer mBuffer = ByteBuffer.allocate(Wrapper.STREAM_BUFFER_LENGTH);
-
-
-        private Reader(SocketChannel sc) {
-            mSocketChannel = sc;
-        }
-
-        private void setNotifiers(List<Callback> cbs, List<Handler> hds){
-            mCallbacks.addAll(cbs);
-            mHandlers.addAll(hds);
-        }
-
-        private void setFileName(String name){
-            mFileName = name;
-        }
-
-        private void setStop(){
-            mStop = true;
-        }
-
-        @Override
-        public void run() {
-            Log.v(TAG, ":Reader: running ");
-            try {
-
-                while (!mStop) {
-                    mBuffer.clear();
-                    mBuffer.rewind();
-                    int count = mSocketChannel.read(mBuffer);
-                    Log.v(TAG, ":Reader: read=" + count);
-                    if (count > 0) {
-                        dispatch(mBuffer);
-                    } else { // stream ending
-                        break;
-                    }
-                }
-                ending();
-            } catch (IOException e){
-                Log.d(TAG, ":Reader: died");
-            }
-
-            Log.v(TAG, ":Reader: exit");
-        }
-
-        private void ending(){
-            try {
-                mSocketChannel.socket().shutdownInput();
-                mSocketChannel.socket().close();
-                mSocketChannel.close();
-            } catch (IOException e) {
-                // do nothing
-            }
-            mSocketChannel = null;
-            mFileName = null;
-            mHandlers.clear();
-            mCallbacks.clear();
-            mStop = false;
-            mBuffer.clear();
-        }
-
-        private void dispatch(ByteBuffer bb){
-            Log.d(TAG, "dispatch: " + bb.toString());
-            if (mFileName != null) {
-                //TODO: write buffer to file
-            } else {
-
-                for (Callback cb : mCallbacks) {
-                    cb.onByteBuffer(bb.duplicate());
-                }
-
-                for (Handler h : mHandlers){
-                    //TODO:
-                }
-            }
-        }
-    }
-
 
 /* ********************************************************************************************** */
 
 
     class Sender extends Thread {
+        private static final int SOCKET_MODE_MESSAGE = 0xC1;
+        private static final int SOCKET_MODE_STREAM = 0xC2;
+
         private String mHost;
         private int mSocketMode = SOCKET_MODE_MESSAGE;
         private ByteBuffer mBytesBuffer;
-        private boolean mStopFlag = false;
+        private final List<ByteBuffer> mQueue = new ArrayList<>();
+        private final Object mLock = new Object();
 
-        private Sender(String ip, int mode){
-            mHost = ip;
+        private Sender(){
+        }
+
+        private void setHost(String host){
+            mHost = host;
+        }
+
+        private void setSocketMode(int mode){
             mSocketMode = mode;
+        }
+
+        private void flush(ByteBuffer bb) {
+            if (bb != null) {
+                mBytesBuffer = bb.duplicate();
+            }
+            Log.v(TAG, ":Sender: flush: " + mBytesBuffer.toString());
         }
 
         @Override
         public void run() {
-            Log.v(TAG, ":Sender: running : " + mHost);
+            Log.v(TAG, ":Sender: running[" + mHost + "]");
 
             try {
                 SocketChannel sc = SocketChannel.open();
-                sc.connect(new InetSocketAddress(mHost, SOCKET_PORT));
-                while (!mStopFlag){
-                    if (mBytesBuffer.remaining() > 0){
-                        sc.write(mBytesBuffer);
-                        if (mSocketMode == SOCKET_MODE_MESSAGE){
+                boolean connected = sc.connect(new InetSocketAddress(mHost, SOCKET_PORT));
+                while (connected) {
+                    if (mBytesBuffer.remaining() > 0) {
+                        Log.v(TAG, "BB: " + mBytesBuffer.toString());
+                        int count = sc.write(mBytesBuffer);
+                        Log.v(TAG, "write: " + count);
+                        if (mSocketMode == SOCKET_MODE_MESSAGE) {
                             break;
-                        } else {
-                            mBytesBuffer.flip();
                         }
                     }
                 }
@@ -415,16 +340,7 @@ public class SocketChanner {
             } catch (IOException e) {
                 Log.e(TAG, ":Sender: thread died !");
             }
-            
-            Log.v(TAG, ":Sender: exit [ " + mHost + " ]");
-        }
-
-        private void flush(ByteBuffer bb){
-            mBytesBuffer = bb.duplicate();
-        }
-
-        private void setStopFlag(){
-            mStopFlag = true;
+            Log.v(TAG, ":Sender: exit [" + mHost + "]");
         }
     }
 
@@ -483,6 +399,13 @@ public class SocketChanner {
             ByteBuffer bb = ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
             bb.putInt(BUFFER_TYPE_TEXT);
             bb.put(text.getBytes());
+            bb.rewind();
+            return bb;
+        }
+
+        private static ByteBuffer wrap(int value){
+            ByteBuffer bb = ByteBuffer.allocate(Wrapper.BUFFER_HEADER_LENGTH);
+            bb.putInt(value);
             bb.rewind();
             return bb;
         }

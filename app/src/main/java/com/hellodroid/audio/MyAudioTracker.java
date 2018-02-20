@@ -46,6 +46,7 @@ public class MyAudioTracker {
     }
 
     public void play(ByteBuffer bb){
+        Log.v(TAG, "play: " + bb);
         if (mPlayingThread.getMode() == 1) {
             mPlayingThread.set(bb);
             if (!mPlayingThread.isAlive()) {
@@ -119,6 +120,7 @@ public class MyAudioTracker {
                     bytes = mByteBuffer.array();
                     readBytes = bytes.length;
                 }
+                Log.v(TAG, "write: " + readBytes);
                 mTrack.write(bytes, 0, readBytes);
             }
 
@@ -192,7 +194,7 @@ public class MyAudioTracker {
         }
 
         private void set(ByteBuffer bb){
-            mByteBuffer = bb;
+            mByteBuffer = bb.duplicate();
         }
     }
 }

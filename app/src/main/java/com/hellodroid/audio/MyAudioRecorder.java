@@ -113,7 +113,7 @@ public class MyAudioRecorder{
                     // reset buffer status
                     bb.clear();
                     bb.rewind();
-                    Log.v(TAG, "source: " + bb.toString());
+                    //Log.v(TAG, "source: " + bb.toString());
 
                     bb.put(bytes);
                     bb.rewind();
@@ -198,6 +198,7 @@ public class MyAudioRecorder{
 
             if (fileName != null){
                 mFileName = fileName;
+                mContext.deleteFile(mFileName);
             }
         }
 
