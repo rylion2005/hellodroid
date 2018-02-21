@@ -19,6 +19,9 @@ import java.util.List;
 public class MyAudioRecorder{
     private static final String TAG = "MyAudioRecorder";
 
+    public static final int RECORD_MODE_FILE = 0;
+    public static final int RECORD_MODE_STREAM = 1;
+
     private static MyAudioRecorder mInstance;
     private final RecordingThread mRecordThread = new RecordingThread();
 
@@ -89,10 +92,10 @@ public class MyAudioRecorder{
         private AudioRecord mRecord;
         private int mBufferSizeInBytes;
 
-        private int mMode = 0; // 0: file; 1: stream
+        private int mMode = RECORD_MODE_FILE;
 
         private Context mContext;
-        private String mFileName = "record.pcm";
+        private String mFileName = "audio.pcm";
         FileOutputStream fos;
 
         private final List<Callback> mCallbackList = new ArrayList<>();
@@ -158,7 +161,7 @@ public class MyAudioRecorder{
             }
 
             // open file
-            if (mMode == 0) {
+            if (mMode == RECORD_MODE_FILE) {
                 try{
                     mContext.deleteFile(mFileName); // TODO: mode judgement
                     fos = mContext.openFileOutput(mFileName, Context.MODE_APPEND);
@@ -212,7 +215,7 @@ public class MyAudioRecorder{
         private void dispatch(ByteBuffer bb){
             Log.v(TAG, "dispatch: " + bb);
             for (Callback cb : mCallbackList){
-                cb.onBufferBytes(bb);
+                cb.onByteStream(bb);
             }
         }
 
@@ -231,6 +234,6 @@ public class MyAudioRecorder{
 
 
     public interface Callback {
-        void onBufferBytes(ByteBuffer buffer);
+        void onByteStream(ByteBuffer frameBytes);
     }
 }

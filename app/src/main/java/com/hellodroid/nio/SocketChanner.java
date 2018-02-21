@@ -8,9 +8,7 @@ package com.hellodroid.nio;
 */
 
 
-import android.os.Bundle;
 import android.os.Handler;
-import android.os.Message;
 import android.util.Log;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -294,8 +292,6 @@ public class SocketChanner {
         private String mHost;
         private int mSocketMode = SOCKET_MODE_MESSAGE;
         private ByteBuffer mBytesBuffer;
-        private final List<ByteBuffer> mQueue = new ArrayList<>();
-        private final Object mLock = new Object();
 
         private Sender(){
         }

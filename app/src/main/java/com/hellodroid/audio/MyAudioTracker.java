@@ -11,6 +11,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import javax.security.auth.login.LoginException;
+
 /*
 **
 ** ${FILE}
@@ -33,20 +35,23 @@ public class MyAudioTracker {
 /* ********************************************************************************************** */
 
 
-    private MyAudioTracker(int mode){
+    private MyAudioTracker(){
         Log.v(TAG, "new tracker");
-        mPlayingThread.setMode(mode);
     }
 
-    public static MyAudioTracker newInstance(int mode){
+    public static MyAudioTracker newInstance(){
         if (mInstance == null){
-            mInstance = new MyAudioTracker(mode);
+            mInstance = new MyAudioTracker();
         }
         return mInstance;
     }
 
-    public void setMode(int mode){
-        mPlayingThread.setMode(mode);
+    public void setPlayMode(int mode){
+        mPlayingThread.setPlayMode(mode);
+    }
+
+    public boolean openFile(Context context, String name){
+        return mPlayingThread.openInputStream(context, name);
     }
 
     public void play(ByteBuffer bb){
@@ -57,15 +62,13 @@ public class MyAudioTracker {
         }
     }
 
-    public void play(Context context, String fileName){
-        mPlayingThread.set(context, fileName);
-        if (!mPlayingThread.isAlive()){
+    public void play(){
+        if (!mPlayingThread.isAlive()) {
             mPlayingThread.start();
         }
     }
 
     public void stop(){
-        Log.v(TAG, "stop: " + mPlayingThread.getState().toString());
         mPlayingThread.interrupt();
     }
 
@@ -77,17 +80,13 @@ public class MyAudioTracker {
         // Audio configurations
         private final static int AUDIO_STREAM = AudioManager.STREAM_MUSIC;
         private final static int AUDIO_SAMPLE_RATE = 44100; //44.1khz
-        private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
+        private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_OUT_STEREO;
         private final static int AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
 
         private AudioTrack mTrack;
         private int mBufferSizeInBytes;
         private int mMode = PLAY_MODE_FILE;
-
-        private Context mContext;
-        private String mFileName = "record.pcm";
         private FileInputStream fis;
-
         private ByteBuffer mByteBuffer;
 
         @Override
@@ -96,35 +95,28 @@ public class MyAudioTracker {
 
             init();
 
-            while(!isInterrupted()) {
-                int readBytes = 0;
-                byte[] bytes = null;
-
+            try {
                 if (mMode == PLAY_MODE_FILE) {
-                    try {
-                        int available = fis.available();
-                        Log.v(TAG, "available: " + available);
-                        if (available > 0) {
-                            bytes = new byte[mBufferSizeInBytes];
-                            readBytes = fis.read(bytes);
-                            Log.v(TAG, "read: " + readBytes);
-                            Log.v(TAG, "write: " + readBytes);
-                            mTrack.write(bytes, 0, readBytes);
-                        } else {
-                            break;
+                    while (!isInterrupted()) {
+                        byte[] bytes = new byte[mBufferSizeInBytes];
+                        int read = fis.read(bytes);
+                        Log.d(TAG, "read: " + read);
+                        if (read > 0){
+                            mTrack.write(bytes, 0, read);
                         }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        break;
                     }
                 } else {
-                    if(mByteBuffer.remaining() > 0) {
-                        bytes = mByteBuffer.array();
-                        int count = mTrack.write(bytes, 0, bytes.length);
-                        mByteBuffer.position(mByteBuffer.limit());;
-                        Log.v(TAG, "write/" + count + "/: " + mByteBuffer.toString());
+                    while (!isInterrupted()) {
+                        if (mByteBuffer.remaining() > 0) {
+                            int count = mTrack.write(mByteBuffer.array(), 0, mByteBuffer.array().length);
+                            //mByteBuffer.position(mByteBuffer.limit());
+                            Log.v(TAG, "write/" + count + "/: " + mByteBuffer.toString());
+                        }
                     }
                 }
+            } catch (IOException e) {
+                Log.e(TAG, "play thread die !");
+                e.printStackTrace();
             }
 
             end();
@@ -139,61 +131,53 @@ public class MyAudioTracker {
                     AUDIO_CHANNEL,
                     AUDIO_ENCODING);
 
-            mTrack = new AudioTrack(
-                    AUDIO_STREAM,
-                    AUDIO_SAMPLE_RATE,
-                    AUDIO_CHANNEL,
-                    AUDIO_ENCODING,
-                    mBufferSizeInBytes,
-                    AudioTrack.MODE_STREAM);
+            try {
+                mTrack = new AudioTrack(
+                        AUDIO_STREAM,
+                        AUDIO_SAMPLE_RATE,
+                        AUDIO_CHANNEL,
+                        AUDIO_ENCODING,
+                        mBufferSizeInBytes,
+                        AudioTrack.MODE_STREAM);
 
-            if ( (mTrack != null)
-                    && (mTrack.getState() != AudioTrack.STATE_UNINITIALIZED)
-                    && (mTrack.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) ) {
                 mTrack.play();
-            }
 
-            if (mMode == 0) {
-                try {
-                    fis = mContext.openFileInput(mFileName);
-                } catch (IOException e) {
-                    fis = null;
-                    //e.printStackTrace();
-                }
+            } catch (IllegalArgumentException|IllegalStateException e) {
+                e.printStackTrace();
             }
         }
 
         private void end(){
-            if (mMode == 0) {
-                try {
-                    fis.close();
-                } catch (IOException e) {
-                    //e.printStackTrace();
-                }
+            try {
+                fis.close();
+            } catch (IOException e) {
+                //e.printStackTrace();
             }
 
             if ( (mTrack != null)
                     && (mTrack.getState() != AudioTrack.STATE_UNINITIALIZED)) {
-                mTrack.play();
+                mTrack.stop();
             }
         }
 
-        private void setMode(int mode){
+        private void setPlayMode(int mode){
             mMode = mode;
         }
 
-        private void set(Context context, String fileName){
-            if (context != null){
-                mContext = context;
+        private boolean openInputStream(Context context, String fileName){
+            boolean result = false;
+            try {
+                fis = context.openFileInput(fileName);
+                result = true;
+            } catch (IOException e) {
+                fis = null;
+                e.printStackTrace();
             }
-
-            if (fileName != null){
-                mFileName = fileName;
-            }
+            return result;
         }
 
         private void flush(ByteBuffer bb){
-            mByteBuffer = bb.duplicate();
+            mByteBuffer = bb;
         }
     }
 }

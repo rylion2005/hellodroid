@@ -126,9 +126,10 @@ public class MyDaemonService extends Service {
 
     private void initAudio(){
         mAudioRecord = MyAudioRecorder.newInstance();
-        mAudioRecord.setMode(1);
+        mAudioRecord.setMode(MyAudioRecorder.RECORD_MODE_STREAM);
         mAudioRecord.register(new AudioRecordCallback());
-        mAudioTrack = MyAudioTracker.newInstance(MyAudioTracker.PLAY_MODE_STREAM);
+        mAudioTrack = MyAudioTracker.newInstance();
+        mAudioTrack.setPlayMode(MyAudioTracker.PLAY_MODE_STREAM);
     }
 
 /* ********************************************************************************************** */
@@ -141,11 +142,11 @@ public class MyDaemonService extends Service {
 
     public class AudioRecordCallback implements MyAudioRecorder.Callback{
         @Override
-        public void onBufferBytes(ByteBuffer buffer) {
-            Log.v(TAG, "onBufferBytes: " + buffer.toString());
+        public void onByteStream(ByteBuffer frameBytes) {
+            Log.v(TAG, "onByteStream: " + frameBytes.toString());
 
             // send buffer to socket
-            mSocketChanner.sendStream(buffer);
+            mSocketChanner.sendStream(frameBytes);
         }
     }
 

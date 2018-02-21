@@ -8,28 +8,18 @@
     tools:context="com.hellodroid.activity.AudioDemo">
 
     <Button
+        android:id="@+id/BTN_RecordAudio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Start Record"
-        android:onClick="startRecord"/>
+        android:text="Record"
+        android:onClick="record"/>
 
     <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Stop Record"
-        android:onClick="stopRecord"/>
-
-    <Button
+        android:id="@+id/BTN_PlayAudio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Play"
         android:onClick="play"/>
-
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Stop"
-        android:onClick="stop"/>
 
 
 </LinearLayout>
