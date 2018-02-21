@@ -51,7 +51,7 @@ public class Scanner extends Handler {
     private static final String TAG = "Scanner";
 
     private static final int MESSAGE_UPDATE_ADDRESSES = 0xAA;
-    private static final int SCAN_PERIOD = 1000; //60 * 1000; // default 1 minutes
+    private static final int SCAN_PERIOD = 60 * 1000; // default 1 minutes
 
     private static Scanner mInstance;
     private static final List<Callback> mCallbackList = new ArrayList<>();
