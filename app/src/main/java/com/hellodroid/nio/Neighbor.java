@@ -13,10 +13,10 @@ import java.util.logging.Handler;
  * Created by jr on 18-2-21.
  */
 
-public class NeighborManager {
-    private static final String TAG = "NeighborManager";
+public class Neighbor {
+    private static final String TAG = "Neighbor";
 
-    private static NeighborManager mInstance;
+    private static Neighbor mInstance;
 
     private final HeartBeat mHeartBeat = new HeartBeat();
     private final List<String>  mNeighbors = new ArrayList<>();
@@ -24,12 +24,12 @@ public class NeighborManager {
     private final List<Callback>  mCallbacks = new ArrayList<>();
     private final List<Handler>  mHandlers = new ArrayList<>();
 
-    private NeighborManager(){
+    private Neighbor(){
     }
 
-    public static NeighborManager newInstance(){
+    public static Neighbor newInstance(){
         if (mInstance == null){
-            mInstance = new NeighborManager();
+            mInstance = new Neighbor();
         }
         return mInstance;
     }
