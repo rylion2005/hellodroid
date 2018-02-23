@@ -6,13 +6,15 @@ import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 import com.hellodroid.audio.MyAudioRecorder;
 import com.hellodroid.audio.MyAudioTracker;
+import com.hellodroid.lan.LanScanner;
+import com.hellodroid.lan.Neighbor;
 import com.hellodroid.nio.SocketChanner;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 
 
 /*
@@ -30,10 +32,16 @@ import java.util.ArrayList;
 public class MyDaemonService extends Service {
     private static final String TAG = "MyDaemonService";
 
-    private SocketChanner mSocketChanner;
+    // final objects
+    private final SocketChanner mSocketChanner = SocketChanner.newInstance();
+    private final Neighbor mNeighbors = Neighbor.newInstance();
+    private final MyAudioRecorder mAudioRecord = MyAudioRecorder.newInstance();
+    private final MyAudioTracker mAudioTrack = MyAudioTracker.newInstance();
+    private final LanScanner mLanScanner = LanScanner.newInstance();
 
-    private MyAudioRecorder mAudioRecord;
-    private MyAudioTracker mAudioTrack;
+
+/* ********************************************************************************************** */
+
 
     public MyDaemonService() {
         Log.v(TAG, "new an instance");
@@ -44,8 +52,10 @@ public class MyDaemonService extends Service {
         super.onCreate();
         Log.d(TAG, "onCreate()");
 
+        initLanScanner();
         initSocket();
         initAudio();
+        initNeighbors();
     }
 
     @Override
@@ -98,10 +108,6 @@ public class MyDaemonService extends Service {
         }
     }
 
-    public void setNeighbors(ArrayList<String> neighbors){
-        mSocketChanner.setNeighbors(neighbors);
-    }
-
     public void sendText(String text){
         //mSocketChanner.sendText(text);
     }
@@ -119,20 +125,27 @@ public class MyDaemonService extends Service {
 
 /* ********************************************************************************************** */
 
+    private void initLanScanner(){
+        mLanScanner.register(new CallbackImpl());
+    }
+
     private void initSocket(){
-        mSocketChanner = SocketChanner.newInstance();
-        mSocketChanner.register(new AudioIncomingCallback(), null);
+        mSocketChanner.register(new CallbackImpl(), null);
     }
 
     private void initAudio(){
-        mAudioRecord = MyAudioRecorder.newInstance();
         mAudioRecord.setMode(MyAudioRecorder.RECORD_MODE_STREAM);
-        mAudioRecord.register(new AudioRecordCallback());
-        mAudioTrack = MyAudioTracker.newInstance();
+        mAudioRecord.register(new CallbackImpl());
         mAudioTrack.setPlayMode(MyAudioTracker.PLAY_MODE_STREAM);
     }
 
+    private void initNeighbors(){
+        mNeighbors.register(null, new CallbackImpl());
+    }
+
+
 /* ********************************************************************************************** */
+
 
     public class MyBinder extends Binder {
         public MyDaemonService getService(){
@@ -140,7 +153,13 @@ public class MyDaemonService extends Service {
         }
     }
 
-    public class AudioRecordCallback implements MyAudioRecorder.Callback{
+
+/* ********************************************************************************************** */
+
+
+    public class CallbackImpl implements MyAudioRecorder.Callback,
+            SocketChanner.Callback, Neighbor.Callback, LanScanner.Callback {
+
         @Override
         public void onByteStream(ByteBuffer frameBytes) {
             Log.v(TAG, "onByteStream: " + frameBytes.toString());
@@ -148,9 +167,7 @@ public class MyDaemonService extends Service {
             // send buffer to socket
             mSocketChanner.sendStream(frameBytes);
         }
-    }
 
-    public class AudioIncomingCallback implements SocketChanner.Callback{
         @Override
         public void onIncomingFile(String name) {
 
@@ -161,6 +178,28 @@ public class MyDaemonService extends Service {
             Log.v(TAG, "onByteBuffer: " + buffer.toString());
             // send buffer to audio track
             mAudioTrack.play(buffer);
+        }
+
+        @Override
+        public void onConnectedNeighbors(List<String> connectedList) {
+            Log.v(TAG, "onConnectedNeighbors: " + connectedList.size());
+            mSocketChanner.updateNeighbors(connectedList);
+        }
+
+        @Override
+        public void onUpdateNeighbors(List<String> neighbors) {
+            Log.v(TAG, "onUpdateNeighbors: " + neighbors.size());
+            mNeighbors.triggerUpdating(neighbors);
+        }
+
+        @Override
+        public void onUpdateLocalAddress(String address) {
+            Log.v(TAG, "onUpdateLocalAddress: " + address);
+        }
+
+        @Override
+        public void onUpdateInternetAddress(String address) {
+            Log.v(TAG, "onUpdateInternetAddress: " + address);
         }
     }
 }

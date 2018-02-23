@@ -4,16 +4,23 @@ import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.View;
-import java.util.ArrayList;
+import java.util.List;
+
 import com.hellodroid.R;
 import com.hellodroid.activity.BaseActivity;
-import com.hellodroid.lan.Scanner;
+import com.hellodroid.lan.LanScanner;
+import com.hellodroid.lan.Neighbor;
 
 
 public class TalkieActivity extends BaseActivity {
     private static final String TAG = "TalkieActivity";
+
+    private static final int MESSAGE_ADDRESS_UPDATING = 0xA0;
+    private final MyHandler mHandler = new MyHandler();
 
     private SessionsFragment mSessionsFragment;
     private ContactsFragment mContactsFragment;
@@ -29,9 +36,8 @@ public class TalkieActivity extends BaseActivity {
         Log.v(TAG, "onCreate");
         setContentView(R.layout.activity_utalkie);
 
-        // Lan Scanner
-        mLanScannerCallback = new AddressUpdateCallback();
-        mLanScanner.register(mLanScannerCallback);
+        mLanScanner.register(new AddressCallback());
+        mNeighbor.register(null, new AddressCallback());
 
         initViews();
     }
@@ -80,8 +86,10 @@ public class TalkieActivity extends BaseActivity {
         mContactsFragment = ContactsFragment.newInstance();
         mProfileFragment = ProfileFragment.newInstance();
         mContactsFragment.updateContacts(mLanScanner.getNeighbours());
+        //mContactsFragment.refreshContactViews();
         mProfileFragment.updateLocalAddress(mLanScanner.getMyLocalAddress());
         mProfileFragment.updateInternetAddress(mLanScanner.getMyInternetAddress());
+        //mProfileFragment.refreshAddressViews();
         addFragment(mSessionsFragment, "SessionsFragment");
     }
 
@@ -102,24 +110,42 @@ public class TalkieActivity extends BaseActivity {
 
 /* ********************************************************************************************** */
 
-    class AddressUpdateCallback implements Scanner.Callback {
+    class AddressCallback implements LanScanner.Callback, Neighbor.Callback {
         @Override
-        public void onUpdateNeighbors(ArrayList<String> neighbors) {
-            Log.v(TAG, "onUpdateNeighbors: " + neighbors.size());
-            mContactsFragment.updateContacts(neighbors);
-            myDaemonService.setNeighbors(neighbors);
+        public void onUpdateNeighbors(List<String> neighbors) {
+            //mContactsFragment.updateContacts(neighbors);
+            //mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
         }
 
         @Override
         public void onUpdateLocalAddress(String address) {
-            Log.v(TAG, "onUpdateLocalAddress: " + address);
             mProfileFragment.updateLocalAddress(address);
+            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
         }
 
         @Override
         public void onUpdateInternetAddress(String address) {
-            Log.v(TAG, "onUpdateInternetAddress: " + address);
             mProfileFragment.updateInternetAddress(address);
+            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
+        }
+
+        @Override
+        public void onConnectedNeighbors(List<String> connectedList) {
+            mContactsFragment.updateContacts(connectedList);
+            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
+        }
+    }
+
+    class MyHandler extends Handler{
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MESSAGE_ADDRESS_UPDATING:
+                    mProfileFragment.refreshAddressViews();
+                    mContactsFragment.refreshContactViews();
+                    break;
+            }
         }
     }
 }

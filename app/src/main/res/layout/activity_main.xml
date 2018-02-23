@@ -32,6 +32,15 @@
         android:text="Audio"
         android:onClick="startAudio"/>
 
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:textAllCaps="false"
+        android:text="Thread"
+        android:onClick="goThread"/>
+
 
 
 </LinearLayout>

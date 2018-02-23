@@ -25,6 +25,8 @@ public class MyBaseAdapter extends BaseAdapter {
     private ArrayList<ViewHolder> mItemsList;
     private Context mContext;
     private int mLayoutResId;
+    private final Object mLock = new Object();
+
 
     public static MyBaseAdapter newInstance(Context context, int resId){
         return new MyBaseAdapter(context, resId);
@@ -34,6 +36,10 @@ public class MyBaseAdapter extends BaseAdapter {
         mItemsList = new ArrayList<>();
         mContext = context;
         mLayoutResId = resId;
+    }
+
+    public final Object getLock(){
+        return mLock;
     }
 
  	@Override

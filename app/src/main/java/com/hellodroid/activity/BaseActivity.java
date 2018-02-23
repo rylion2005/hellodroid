@@ -5,6 +5,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -12,7 +13,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 
-import com.hellodroid.lan.Scanner;
+import com.hellodroid.lan.LanScanner;
+import com.hellodroid.lan.Neighbor;
 import com.hellodroid.network.MyNetworkReceiver;
 import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.service.MyDaemonService;
@@ -41,9 +43,8 @@ public class BaseActivity extends AppCompatActivity {
     //protected MyNetworkReceiver myNetworkReceiver;
     //protected MyNetworkReceiver.CallBack myNetworkReceiverCallback;
 
-    // Lan Scanner
-    protected Scanner mLanScanner;
-    protected Scanner.Callback mLanScannerCallback;
+    protected final LanScanner mLanScanner = LanScanner.newInstance();
+    protected final Neighbor mNeighbor = Neighbor.newInstance();
 
     // SocketChanner
     protected SocketChanner.Callback mySocketCallback;
@@ -98,6 +99,8 @@ public class BaseActivity extends AppCompatActivity {
     }
 
 
+
+
 /* ********************************************************************************************** */
 
     private void init(){
@@ -111,7 +114,6 @@ public class BaseActivity extends AppCompatActivity {
         //myNetworkReceiver = MyNetworkReceiver.getInstance(this);
         //myNetworkReceiver.register(myNetworkReceiverCallback);
 
-        mLanScanner = Scanner.newInstance();
     }
 
     /**

@@ -9,7 +9,7 @@ import com.hellodroid.R;
 import com.hellodroid.nio.SocketChannelDemo;
 import com.hellodroid.nio.SocketChanner;
 import com.hellodroid.talkie.TalkieActivity;
-
+import com.hellodroid.thread.ThreadDemo;
 
 
 public class MainActivity extends BaseActivity {
@@ -48,6 +48,10 @@ public class MainActivity extends BaseActivity {
 
     public void startSocketChannel(View v) {
         startActivity(new Intent(this, SocketChannelDemo.class));
+    }
+
+    public void goThread(View v) {
+        startActivity(new Intent(this, ThreadDemo.class));
     }
 
 

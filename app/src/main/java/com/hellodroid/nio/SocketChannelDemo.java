@@ -7,11 +7,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
-
+import java.nio.ByteBuffer;
 import com.hellodroid.R;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 
 public class SocketChannelDemo extends AppCompatActivity {
     private static final String TAG = "SocketChannelDemo";

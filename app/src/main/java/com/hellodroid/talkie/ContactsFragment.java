@@ -19,8 +19,7 @@ import java.util.List;
 public class ContactsFragment extends Fragment implements AdapterView.OnItemClickListener{
     private static final String TAG = "ContactsFragment";
 
-    private OnFragmentInteractionListener mListener;
-    private MyBaseAdapter mAdapter;
+    private  MyBaseAdapter mAdapter;
     private final List<String> mAddressList = new ArrayList<>();
 
 
@@ -40,14 +39,6 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     public void onAttach(Context context) {
         super.onAttach(context);
         Log.v(TAG, "onAttach");
-        /*
-        if (context instanceof OnFragmentInteractionListener) {
-            mListener = (OnFragmentInteractionListener) context;
-        } else {
-            throw new RuntimeException(context.toString()
-                    + " must implement OnFragmentInteractionListener");
-        }
-        */
     }
 
     @Override
@@ -69,6 +60,7 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     public void onResume() {
         super.onResume();
         Log.v(TAG, "onResume");
+        refreshContactViews();
     }
 
     @Override
@@ -87,7 +79,6 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
     public void onDetach() {
         Log.v(TAG, "onDetach");
         super.onDetach();
-        mListener = null;
     }
 
     @Override
@@ -99,10 +90,31 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
 
 /* ********************************************************************************************** */
 
-    public void updateContacts(ArrayList<String> addressList){
-        Log.v(TAG, "updateContacts: " + addressList.size());
-        reloadContacts(addressList);
-        refreshListView();
+    public void updateContacts(List<String> addressList){
+        synchronized (mAddressList) {
+            mAddressList.clear();
+            mAddressList.addAll(addressList);
+        }
+    }
+
+    public void refreshContactViews(){
+        Log.v(TAG, "refreshContactViews: " + mAddressList.size());
+        if ((mAdapter == null)){
+            return;
+        }
+
+        synchronized (mAdapter.getLock()) {
+            mAdapter.clearItemList();
+        }
+
+        synchronized (mAddressList) {
+            for (String ip : mAddressList) {
+                MyBaseAdapter.ViewHolder vh = mAdapter.createHolder();
+                vh.setImageView(R.id.IMV_ContactLogo, R.mipmap.ic_contact);
+                vh.setTextView(R.id.TXV_IpAddress, ip);
+            }
+        }
+        mAdapter.notifyDataSetChanged();
     }
 
 
@@ -120,45 +132,6 @@ public class ContactsFragment extends Fragment implements AdapterView.OnItemClic
         lsv.setAdapter(mAdapter);
         lsv.setOnItemClickListener(this);
 
-        refreshListView();
-    }
-
-    private void refreshListView(){
-        Log.v(TAG, "refreshListView()");
-        if ((mAdapter == null)){
-            return;
-        }
-
-        mAdapter.clearItemList();
-        for ( String ip : mAddressList ) {
-            MyBaseAdapter.ViewHolder vh = mAdapter.createHolder();
-            vh.setImageView(R.id.IMV_ContactLogo, R.mipmap.ic_contact);
-            vh.setTextView(R.id.TXV_IpAddress, ip);
-        }
-        mAdapter.notifyDataSetChanged();
-    }
-
-    private void reloadContacts(ArrayList<String> addressList){
-        mAddressList.clear();
-        mAddressList.addAll(addressList);
-    }
-
-
-/* ********************************************************************************************** */
-
-
-    /**
-     * This interface must be implemented by activities that contain this
-     * fragment to allow an interaction in this fragment to be communicated
-     * to the activity and potentially other fragments contained in that
-     * activity.
-     * <p>
-     * See the Android Training lesson <a href=
-     * "http://developer.android.com/training/basics/fragments/communicating.html"
-     * >Communicating with Other Fragments</a> for more information.
-     */
-    public interface OnFragmentInteractionListener {
-        // TODO: Update argument type and name
-        void onFragmentInteraction(Uri uri);
+        //refreshListView();
     }
 }

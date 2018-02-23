@@ -91,13 +91,23 @@ public class ProfileFragment extends Fragment{
     public void updateLocalAddress(String address){
         Log.v(TAG, "updateLocalAddress: " + address);
         mLocalAddress = address;
-        refreshAddressViews();
+        //refreshAddressViews();
     }
 
     public void updateInternetAddress(String address){
         Log.v(TAG, "updateInternetAddress: " + address);
         mInternetAddress = address;
-        refreshAddressViews();
+        //refreshAddressViews();
+    }
+
+    public void refreshAddressViews(){
+        if (mTXVLocalAddress != null) {
+            mTXVLocalAddress.setText(mLocalAddress);
+        }
+
+        if (mTXVInternetAddress != null) {
+            mTXVInternetAddress.setText(mInternetAddress);
+        }
     }
 
 /* ********************************************************************************************** */
@@ -106,15 +116,6 @@ public class ProfileFragment extends Fragment{
     private void initViews(View rootView){
         mTXVLocalAddress = rootView.findViewById(R.id.TXV_LocalAddress);
         mTXVInternetAddress = rootView.findViewById(R.id.TXV_InternetAddress);
-
-        mTXVLocalAddress.setText(mLocalAddress);
-        mTXVInternetAddress.setText(mInternetAddress);
-    }
-
-    private void refreshAddressViews(){
-        if ((mTXVLocalAddress == null || (mTXVInternetAddress == null))){
-            return;
-        }
 
         mTXVLocalAddress.setText(mLocalAddress);
         mTXVInternetAddress.setText(mInternetAddress);

@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hellodroid">
 
+    <!-- Network -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
@@ -48,9 +49,11 @@
 
         <activity
             android:name=".activity.AudioDemo"
-            android:label="@string/title_activity_audio_demo"
             android:theme="@style/AppTheme.NoActionBar" />
-        <activity android:name=".nio.SocketChannelDemo"></activity>
+        <activity android:name=".nio.SocketChannelDemo" />
+        <activity
+            android:name=".thread.ThreadDemo"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 
 </manifest>

@@ -1,13 +1,12 @@
-package com.hellodroid.nio;
+package com.hellodroid.lan;
 
+import android.os.Handler;
 import android.util.Log;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Handler;
 
 /**
  * Created by jr on 18-2-21.
@@ -17,14 +16,14 @@ public class Neighbor {
     private static final String TAG = "Neighbor";
 
     private static Neighbor mInstance;
-
-    private final HeartBeat mHeartBeat = new HeartBeat();
+    //private final Connector mConnector = new Connector();
     private final List<String>  mNeighbors = new ArrayList<>();
     private final List<String>  mFriends = new ArrayList<>();
     private final List<Callback>  mCallbacks = new ArrayList<>();
     private final List<Handler>  mHandlers = new ArrayList<>();
 
     private Neighbor(){
+        Log.v(TAG, "new Neighbor");
     }
 
     public static Neighbor newInstance(){
@@ -34,7 +33,7 @@ public class Neighbor {
         return mInstance;
     }
 
-    public void regsiter(Handler h, Callback cb){
+    public void register(Handler h, Callback cb){
         if (h != null){
             mHandlers.add(h);
         }
@@ -45,24 +44,25 @@ public class Neighbor {
     }
 
     public void triggerUpdating(List<String> neighbors) {
+        Log.v(TAG, "triggerUpdating: " + neighbors.size());
         synchronized (mNeighbors) {
             mNeighbors.clear();
             mNeighbors.addAll(neighbors);
         }
-
-        if (!mHeartBeat.isAlive()){
-            mHeartBeat.start();
-        }
+        Thread t = new Connector();
+        t.start();
     }
 
 
 /* ********************************************************************************************** */
 
-    class HeartBeat extends Thread{
+
+    class Connector extends Thread {
         private final int SOCKET_PORT = 8866;
 
         @Override
         public void run() {
+            Log.v(TAG, ":Neighbor.Connector: running ...");
             List<String> connectedList = new ArrayList<>();
 
             synchronized (mNeighbors) {
@@ -92,11 +92,12 @@ public class Neighbor {
             }
 
             delivery();
+            Log.v(TAG, ":Neighbor.Connector: exit ...");
         }
 
         private void delivery(){
             for (Callback cb : mCallbacks){
-                cb.onConnectableNeighbors(mFriends);
+                cb.onConnectedNeighbors(mFriends);
             }
 
             for (Handler h : mHandlers){
@@ -105,9 +106,11 @@ public class Neighbor {
         }
     }
 
+
 /* ********************************************************************************************** */
 
-    interface Callback {
-        void onConnectableNeighbors(List<String> connectableList);
+
+    public interface Callback {
+        void onConnectedNeighbors(List<String> connectedList);
     }
 }

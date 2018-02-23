@@ -8,7 +8,9 @@ package com.hellodroid.nio;
 */
 
 
+import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -37,14 +39,9 @@ public class SocketChanner {
     private static final String TAG = "SocketChanner";
 
     private static final int SOCKET_PORT = 8866;
-
     private static SocketChanner mInstance;
 
-    // ip address
-    private List<String> mNeighborList = new ArrayList<>();
-    private final static Object mNeighborLock = new Object();
-
-    // listener thread
+    private final List<String> mNeighborList = new ArrayList<>();
     private final Listener mListener = new Listener();
     private final Sender mSender = new Sender();
 
@@ -68,9 +65,9 @@ public class SocketChanner {
         mListener.register(cb, h);
     }
 
-    public void setNeighbors(ArrayList<String> neighbors){
-        //Log.v(TAG, "setNeighbors: " + neighbors.size());
-        synchronized (mNeighborLock) {
+    public void updateNeighbors(List<String> neighbors){
+        Log.v(TAG, "updateNeighbors: " + neighbors.size());
+        synchronized (mNeighborList) {
             mNeighborList.clear();
             mNeighborList.addAll(neighbors);
         }
@@ -80,12 +77,14 @@ public class SocketChanner {
 
         ByteBuffer bb = Wrapper.wrap(text);
 
-        for (String ip : mNeighborList){
-            Sender s = new Sender();
-            s.setHost(ip);
-            s.setSocketMode(Sender.SOCKET_MODE_MESSAGE);
-            s.flush(bb);
-            s.start();
+        synchronized (mNeighborList) {
+            for (String ip : mNeighborList) {
+                Sender s = new Sender();
+                s.setHost(ip);
+                s.setSocketMode(Sender.SOCKET_MODE_MESSAGE);
+                s.flush(bb);
+                s.start();
+            }
         }
         bb.clear();
     }
@@ -268,7 +267,7 @@ public class SocketChanner {
                 cb.onByteBuffer(bb.duplicate());
                 cb.onIncomingFile(null);
             }
-/*
+
             Log.v(TAG, "dispatch: handler=" + mHandlerList.size());
             for (Handler h : mHandlerList){
                 Message m = new Message();
@@ -278,7 +277,7 @@ public class SocketChanner {
                 m.setData(b);
                 h.sendMessage(m);
             }
-*/
+
         }
     }
 
@@ -305,9 +304,7 @@ public class SocketChanner {
         }
 
         private void flush(ByteBuffer bb) {
-            if (bb != null) {
-                mBytesBuffer = bb.duplicate();
-            }
+            mBytesBuffer = bb;
             //Log.v(TAG, ":Sender: flush: " + mBytesBuffer.toString());
         }
 
@@ -319,7 +316,7 @@ public class SocketChanner {
                 SocketChannel sc = SocketChannel.open();
                 boolean connected = sc.connect(new InetSocketAddress(mHost, SOCKET_PORT));
                 Log.d(TAG, ":Sender: connected=" + sc.toString());
-                while (connected) {
+                while (connected && !isInterrupted()) {
                     if (mBytesBuffer.remaining() > 0) {
                         //Log.v(TAG, "BB: " + mBytesBuffer.toString());
                         int count = sc.write(mBytesBuffer);

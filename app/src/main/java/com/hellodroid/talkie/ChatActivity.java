@@ -6,7 +6,6 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
@@ -18,8 +17,6 @@ import android.widget.TextView;
 import com.hellodroid.R;
 import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.adapter.MyBaseAdapter;
-import com.hellodroid.audio.MyAudioRecorder;
-import com.hellodroid.audio.MyAudioTracker;
 import com.hellodroid.nio.SocketChanner;
 
 import java.nio.ByteBuffer;
