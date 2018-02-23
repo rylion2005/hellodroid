@@ -59,6 +59,11 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
             case R.id.TXV_Talk:
                 mTalkStop = !mTalkStop;
                 myDaemonService.record(mTalkStop);
+                if (mTalkStop){
+                    mTXVTalk.setText("Stop Talk");
+                } else {
+                    mTXVTalk.setText("Start Talk");
+                }
                 break;
 
             case R.id.EDT_Input:

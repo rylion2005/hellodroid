@@ -5,13 +5,11 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-
-
-import com.hellodroid.R;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
+
+import com.hellodroid.R;
 
 public class ThreadDemo extends AppCompatActivity {
 

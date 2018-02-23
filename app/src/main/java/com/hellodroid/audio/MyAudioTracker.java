@@ -107,7 +107,7 @@ public class MyAudioTracker {
                     }
                 } else {
                     while (!isInterrupted()) {
-                        if (mByteBuffer.remaining() > 0) {
+                        if (mByteBuffer.hasRemaining()) {
                             int count = mTrack.write(mByteBuffer.array(), 0, mByteBuffer.array().length);
                             //mByteBuffer.position(mByteBuffer.limit());
                             Log.v(TAG, "write/" + count + "/: " + mByteBuffer.toString());

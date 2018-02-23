@@ -15,6 +15,8 @@ import android.util.Log;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class SocketChanner {
     private final List<String> mNeighborList = new ArrayList<>();
     private final Listener mListener = new Listener();
     private final Sender mSender = new Sender();
+    private final Streamer mStreamer = new Streamer();
 
 
 /* ********************************************************************************************** */
@@ -73,6 +76,10 @@ public class SocketChanner {
         }
     }
 
+    public void dialHost(String host){
+        mStreamer.setHost(host);
+    }
+
     public void sendText(String text){
 
         ByteBuffer bb = Wrapper.wrap(text);
@@ -92,36 +99,31 @@ public class SocketChanner {
     public void prepareStream(String fileName){
         Log.v(TAG, "prepareStream");
         ByteBuffer bb = Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_FILE, fileName);
-        mSender.setHost("10.10.10.101");
-        mSender.setSocketMode(Sender.SOCKET_MODE_STREAM);
-        mSender.flush(bb);
-        mSender.start();
-    }
-
-    public void prepareStream(){
-        Log.v(TAG, "prepareStream");
-        ByteBuffer bb = Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_BYTE);
-        //mSender.setHost("10.10.10.101");
-        mSender.setHost("192.168.1.101");
-        mSender.setSocketMode(Sender.SOCKET_MODE_STREAM);
-        mSender.flush(bb);
-        mSender.start();
+        mStreamer.setHost("10.10.10.100");
+        mStreamer.flushLocked(bb);
+        mStreamer.start();
     }
 
     public void sendStream(ByteBuffer bb){
         //Log.v(TAG, "sendStream: " + bb.toString());
-        //Log.v(TAG, "Sender: state=" + mSender.getState().toString());
-        if (!mSender.isAlive()){
-            // discard th first frames
-            prepareStream();
+        Log.v(TAG, ":Streamer: state=" + mStreamer.getState().toString());
+        if (!mStreamer.isAlive()){
+            Log.v(TAG, ":Streamer: send stream header");
+            // discard the first frame
+            ByteBuffer head = Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_BYTE);
+            mStreamer.setHost("10.10.10.100");
+            //mStreamer.setHost("192.168.1.101");
+            mStreamer.flushLocked(head);
+            mStreamer.start();
+            head.clear();
         } else {
-            mSender.flush(bb);
+            mStreamer.flushLocked(bb);
         }
     }
 
     public void stopStream(){
         //Log.v(TAG, "stopStream");
-        mSender.flush(Wrapper.wrap(Wrapper.BUFFER_TYPE_STREAM_ENDING));
+        mStreamer.interrupt();
     }
 
 
@@ -182,17 +184,16 @@ public class SocketChanner {
             Log.v(TAG, ":Listener: running");
 
             try {
+                ByteBuffer bb = ByteBuffer.allocate(Wrapper.STREAM_BUFFER_LENGTH);
                 ServerSocketChannel ssc = ServerSocketChannel.open();
                 ssc.socket().bind(new InetSocketAddress(SOCKET_PORT));
                 while (true) { // Listener always alive !
                     Log.d(TAG, ":Listener: waiting ...");
                     SocketChannel sc = ssc.accept();
                     Log.v(TAG, ":Listener: accept= " + sc.socket().toString());
-                    ByteBuffer bb =  ByteBuffer.allocate(Wrapper.STREAM_BUFFER_LENGTH);
                     int count;
                     do {
                         bb.clear();
-                        bb.rewind();
                         count = sc.read(bb);
                         Log.v(TAG, ":Listener: read: " + count);
                         if (count > 0) {
@@ -200,8 +201,9 @@ public class SocketChanner {
                             handleStateMachine(bb);
                         }
                     } while (count > 0);
+                    mState = STATE_READY;
                     bb.clear();
-                    sc.socket().close();
+                    sc.close();
                 }
             } catch (IOException e){
                 Log.v(TAG, ":Listener: thread died");
@@ -337,6 +339,63 @@ public class SocketChanner {
 
 /* ********************************************************************************************** */
 
+    class Streamer extends Thread {
+
+        private String mHost;
+        private ByteBuffer mByteBuffer;
+        private final Object mLock = new Object();
+
+        private Streamer(){
+            Log.v(TAG, ":Streamer: new instance");
+        }
+
+        private void setHost(String host){
+            mHost = host;
+        }
+
+        private void flushLocked(ByteBuffer bb){
+            //dumpByteBuffer(bb);
+            mByteBuffer = bb;
+        }
+
+        @Override
+        public void run() {
+            SocketChannel sc = null;
+
+            Log.v(TAG, ":Streamer: running");
+            try {
+                sc = SocketChannel.open(new InetSocketAddress(mHost, SOCKET_PORT));
+                while (!isInterrupted()){
+                    if (mByteBuffer.hasRemaining()){
+                        Log.v(TAG, "write: " + mByteBuffer);
+                        sc.write(mByteBuffer);
+                    }
+                }
+                // TODO: ??? send stream ending
+
+            } catch (ClosedByInterruptException e) {
+                Log.v(TAG, ":Streamer: ClosedByInterruptException");
+                e.printStackTrace();
+            }  catch (AsynchronousCloseException e) {
+                Log.v(TAG, ":Streamer: AsynchronousCloseException");
+                e.printStackTrace();
+            } catch (IOException e) {
+                Log.v(TAG, ":Streamer: IOException");
+            }
+
+            try{
+                sc.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+            Log.v(TAG, ":Streamer: exit");
+        }
+    }
+
+/* ********************************************************************************************** */
+
     static class Wrapper{
         private static final int BUFFER_HEADER_LENGTH = 4; // header
         private static final int MESSAGE_CONTENT_LENGTH = 1024; // contents
@@ -367,7 +426,7 @@ public class SocketChanner {
             if (bytes != null) { // allow content has nothing
                 bb.put(bytes);
             }
-            bb.rewind();
+            bb.flip();
 
             return bb;
         }
@@ -378,7 +437,7 @@ public class SocketChanner {
             if (fileName != null) {
                 bb.put(fileName.getBytes());
             }
-            bb.rewind();
+            bb.flip();
             return bb;
         }
 
@@ -390,14 +449,14 @@ public class SocketChanner {
             ByteBuffer bb = ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
             bb.putInt(BUFFER_TYPE_TEXT);
             bb.put(text.getBytes());
-            bb.rewind();
+            bb.flip();
             return bb;
         }
 
         private static ByteBuffer wrap(int value){
             ByteBuffer bb = ByteBuffer.allocate(Wrapper.BUFFER_HEADER_LENGTH);
             bb.putInt(value);
-            bb.rewind();
+            bb.flip();
             return bb;
         }
 
@@ -421,7 +480,7 @@ public class SocketChanner {
             int length = buffer.limit() - BUFFER_HEADER_LENGTH;
             ByteBuffer bb = ByteBuffer.allocate(length);
             bb.put(unwrapContentBytes(buffer));
-            bb.rewind();
+            bb.flip();
             return bb;
         }
     }

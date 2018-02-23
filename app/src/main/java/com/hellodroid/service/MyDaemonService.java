@@ -1,11 +1,15 @@
 package com.hellodroid.service;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -38,6 +42,9 @@ public class MyDaemonService extends Service {
     private final MyAudioRecorder mAudioRecord = MyAudioRecorder.newInstance();
     private final MyAudioTracker mAudioTrack = MyAudioTracker.newInstance();
     private final LanScanner mLanScanner = LanScanner.newInstance();
+
+    private final String mFileName = "audio.pcm";
+    private FileOutputStream mFos;
 
 
 /* ********************************************************************************************** */
@@ -122,6 +129,10 @@ public class MyDaemonService extends Service {
         }
     }
 
+    public void dialHost(String host){
+        mSocketChanner.dialHost(host);
+    }
+
 
 /* ********************************************************************************************** */
 
@@ -143,6 +154,19 @@ public class MyDaemonService extends Service {
         mNeighbors.register(null, new CallbackImpl());
     }
 
+    private void save(ByteBuffer bb){
+        Log.v(TAG, "save: bb=" + bb);
+
+        try {
+            if (mFos == null){
+                mFos = this.openFileOutput(mFileName, Context.MODE_APPEND);
+            } else {
+                mFos.write(bb.array());
+            }
+        } catch (IOException | NullPointerException e) {
+            //e.printStackTrace();
+        }
+    }
 
 /* ********************************************************************************************** */
 
@@ -177,7 +201,8 @@ public class MyDaemonService extends Service {
         public void onByteBuffer(ByteBuffer buffer) {
             Log.v(TAG, "onByteBuffer: " + buffer.toString());
             // send buffer to audio track
-            mAudioTrack.play(buffer);
+            //mAudioTrack.play(buffer);
+            save(buffer);
         }
 
         @Override

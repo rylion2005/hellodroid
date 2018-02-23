@@ -103,34 +103,24 @@ public class MyAudioRecorder{
         @Override
         public void run() {
             Log.v(TAG, ":recording: running ......");
-
             init();
-
             ByteBuffer bb = ByteBuffer.allocate(mBufferSizeInBytes);
             byte[] bytes = new byte[mBufferSizeInBytes];
-
             while (!isInterrupted()) {  // thread running
                 int readBytes = mRecord.read(bytes, 0, mBufferSizeInBytes);
                 Log.v(TAG, "read: " + readBytes);
                 if (readBytes > 0) {
-                    // reset buffer status
                     bb.clear();
-                    bb.rewind();
-                    //Log.v(TAG, "source: " + bb.toString());
-
                     bb.put(bytes);
-                    bb.rewind();
+                    bb.flip();
                     if (mMode == 0) { // save buffer to file
                         save(bb);
                     } else {          // dispatch buffer to client
                         dispatch(bb);
                     }
                 }
-
             }
-
             end();
-
             Log.v(TAG, ":recording: exit ...");
         }
 
