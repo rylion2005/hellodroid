@@ -4,10 +4,10 @@ package com.hellodroid.activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.TextView;
+
 import com.hellodroid.R;
-import com.hellodroid.nio.SocketChannelDemo;
-import com.hellodroid.nio.SocketChanner;
+import com.hellodroid.audio.AudioDemo;
+import com.hellodroid.nio.NioDemo;
 import com.hellodroid.talkie.TalkieActivity;
 import com.hellodroid.thread.ThreadDemo;
 
@@ -46,8 +46,8 @@ public class MainActivity extends BaseActivity {
         startActivity(new Intent(this, AudioDemo.class));
     }
 
-    public void startSocketChannel(View v) {
-        startActivity(new Intent(this, SocketChannelDemo.class));
+    public void startNio(View v) {
+        startActivity(new Intent(this, NioDemo.class));
     }
 
     public void goThread(View v) {

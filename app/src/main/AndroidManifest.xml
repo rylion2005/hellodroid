@@ -48,9 +48,9 @@
             android:exported="true" />
 
         <activity
-            android:name=".activity.AudioDemo"
+            android:name=".audio.AudioDemo"
             android:theme="@style/AppTheme.NoActionBar" />
-        <activity android:name=".nio.SocketChannelDemo" />
+        <activity android:name=".nio.NioDemo" />
         <activity
             android:name=".thread.ThreadDemo"
             android:theme="@style/AppTheme.NoActionBar"></activity>

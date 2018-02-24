@@ -17,7 +17,6 @@ import android.widget.TextView;
 import com.hellodroid.R;
 import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.adapter.MyBaseAdapter;
-import com.hellodroid.nio.SocketChanner;
 
 import java.nio.ByteBuffer;
 
@@ -58,7 +57,6 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
             case R.id.TXV_Talk:
                 mTalkStop = !mTalkStop;
-                myDaemonService.record(mTalkStop);
                 if (mTalkStop){
                     mTXVTalk.setText("Stop Talk");
                 } else {
@@ -75,8 +73,6 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
                 // Show in list view
                 showTextMessage(false, mEDTText.getText().toString());
 
-                // Send message
-                myDaemonService.sendText(mEDTText.getText().toString());
                 switchAction(false);
                 break;
             default:
@@ -111,7 +107,6 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
 
     private void init() {
-        mySocketCallback = new SocketMessageCallback();
     }
 
     private void initViews() {
@@ -184,16 +179,4 @@ public class ChatActivity extends BaseActivity implements View.OnClickListener, 
 
 /* ********************************************************************************************** */
 
-    class SocketMessageCallback implements SocketChanner.Callback {
-
-        @Override
-        public void onIncomingFile(String name) {
-
-        }
-
-        @Override
-        public void onByteBuffer(ByteBuffer buffer) {
-            //showTextMessage(true, text);
-        }
-    }
 }

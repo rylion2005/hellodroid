@@ -13,7 +13,6 @@ import java.util.List;
 import com.hellodroid.R;
 import com.hellodroid.activity.BaseActivity;
 import com.hellodroid.lan.LanScanner;
-import com.hellodroid.lan.Neighbor;
 
 
 public class TalkieActivity extends BaseActivity {
@@ -35,10 +34,7 @@ public class TalkieActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         Log.v(TAG, "onCreate");
         setContentView(R.layout.activity_utalkie);
-
         mLanScanner.register(new AddressCallback());
-        mNeighbor.register(null, new AddressCallback());
-
         initViews();
     }
 
@@ -110,7 +106,7 @@ public class TalkieActivity extends BaseActivity {
 
 /* ********************************************************************************************** */
 
-    class AddressCallback implements LanScanner.Callback, Neighbor.Callback {
+    class AddressCallback implements LanScanner.Callback{
         @Override
         public void onUpdateNeighbors(List<String> neighbors) {
             //mContactsFragment.updateContacts(neighbors);

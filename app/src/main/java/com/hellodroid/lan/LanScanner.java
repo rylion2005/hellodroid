@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +40,7 @@ import java.util.regex.Pattern;
 public class LanScanner extends Handler {
     private static final String TAG = "LanScanner";
 
+    private static final int SOCKET_PORT = 8866;
     private static final int MESSAGE_UPDATE_ADDRESSES = 0xAA;
     private static final int SCAN_PERIOD = 10 * 1000;
     private static LanScanner mInstance;
@@ -45,6 +48,8 @@ public class LanScanner extends Handler {
 
     private String myLocalAddress;
     private String myNetworkAddress;
+
+    final List<String> mConnections = new ArrayList<>();
 
 
 /* ********************************************************************************************** */
@@ -68,7 +73,11 @@ public class LanScanner extends Handler {
     }
 
     public List<String> getNeighbours(){
-        return readArp();
+        if (mConnections.isEmpty()){
+            return readArp();
+        } else {
+            return mConnections;
+        }
     }
 
     public String getMyLocalAddress(){
@@ -87,6 +96,7 @@ public class LanScanner extends Handler {
                 Log.v(TAG, "Callback List: " + mCallbackList.size());
                 for (Callback cb : mCallbackList){
                     cb.onUpdateNeighbors(getNeighbours());
+                    cb.onConnectedNeighbors(mConnections);
                     cb.onUpdateLocalAddress(myLocalAddress);
                     cb.onUpdateInternetAddress(myNetworkAddress);
                 }
@@ -99,7 +109,6 @@ public class LanScanner extends Handler {
 
 
 /* ********************************************************************************************** */
-
 
     private List<String> readArp(){
         List<String> ipList = new ArrayList<>();
@@ -126,7 +135,6 @@ public class LanScanner extends Handler {
         return ipList;
     }
 
-
 /* ********************************************************************************************** */
 
 
@@ -144,6 +152,7 @@ public class LanScanner extends Handler {
             if (!notifySent) {
                 discovery(myLocalAddress);
             } else {
+                tryConnect();
                 sendEmptyMessage(MESSAGE_UPDATE_ADDRESSES);
             }
         }
@@ -183,10 +192,32 @@ public class LanScanner extends Handler {
             }
             return matcher.start();
         }
+
+        private void tryConnect(){
+            synchronized (mConnections){
+                mConnections.clear();
+                List<String> neighbors = readArp();
+                for (String ip : neighbors) {
+                    try {
+                        SocketChannel sc = SocketChannel.open();
+                        boolean connected = sc.connect(new InetSocketAddress(ip, SOCKET_PORT));
+                        if (connected) {
+                            Log.d(TAG, ":HB: " + sc.toString());
+                            //TODO: can do more communications
+                            mConnections.add(ip);
+                        }
+                        sc.close();
+                    } catch (IOException e) {
+                        //
+                    }
+                }
+            }
+        }
     }
 
     public interface Callback {
         void onUpdateNeighbors(List<String> neighbors);
+        void onConnectedNeighbors(List<String> neighbors);
         void onUpdateLocalAddress(String address);
         void onUpdateInternetAddress(String address);
     }

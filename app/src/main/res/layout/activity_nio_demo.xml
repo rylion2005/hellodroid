@@ -8,8 +8,6 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
         android:textAllCaps="false"
         android:text="Send Text"
         android:onClick="sendText"/>
@@ -17,8 +15,13 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
+        android:textAllCaps="false"
+        android:text="Send File"
+        android:onClick="sendFile"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:textAllCaps="false"
         android:text="Start Stream"
         android:onClick="startStream"/>
@@ -26,8 +29,6 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
         android:textAllCaps="false"
         android:text="Stop Stream"
         android:onClick="stopStream"/>
