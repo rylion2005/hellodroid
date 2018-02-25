@@ -8,12 +8,14 @@ package com.hellodroid.nio;
 */
 
 
-import android.os.Bundle;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -27,17 +29,22 @@ public class Filer {
     private static final String TAG = "Filer";
 
     private static final int SOCKET_FILE_PORT = 62246;
-    private static final int HEADER_INFORMATION = 0xFFAF;
+    private static final int BUFFER_HEADER_BYTES = 4;
+    private static final int MAX_BUFFER_BYTES = 1028;
+    private static final int FILE_HEADER = 0xFFAF;
     private static Filer mInstance;
 
     private final Listener mListener = new Listener();
     private final Sender mSender = new Sender();
 
+    private Context mContext; // for internal directory
+    private String mPath;     // for external directory
+
 
 /* ********************************************************************************************** */
 
     private Filer(){
-        mListener.start();
+        //mListener.start();
         //mSender.start();
     }
 
@@ -53,6 +60,16 @@ public class Filer {
         mListener.register(cb, h);
     }
 
+    // save internal
+    public void configure(Context context){
+        mContext = context;
+    }
+
+    // save external
+    public void configure(String path){
+        mPath = path;
+    }
+
     public void sendFileInformation(String fileName) {
 
     }
@@ -61,44 +78,21 @@ public class Filer {
 
     }
 
-
 /* ********************************************************************************************** */
 
-    private void dumpThread(Thread t){
-        Log.v(TAG, " <<<<<<<<<< Thread >>>>>>>>>>");
-        Log.v(TAG, "Thread: " + t.toString());
-        Log.v(TAG, "ID: " + t.getId());
-        Log.v(TAG, "Name: " + t.getName());
-        Log.v(TAG, "Priority: " + t.getPriority());
-        Log.v(TAG, "State: " + t.getState().toString());
-        Log.v(TAG, "isAlive: " + t.isAlive());
-        Log.v(TAG, "isInterrupted: " + t.isInterrupted());
-        Log.v(TAG, " <<<<<<<<<<        >>>>>>>>>>");
-    }
+    class Listener implements Runnable {
 
-    private void dumpByteBuffer(ByteBuffer bb){
-        Log.v(TAG, ">>>>>>>>>>");
-        Log.v(TAG, "Byte Buffer: " + bb.toString());
-        Log.v(TAG, "Byte Buffer: capacity=" + bb.capacity());
-        Log.v(TAG, "Byte Buffer: limit=" + bb.limit());
-        Log.v(TAG, "Byte Buffer: position=" + bb.position());
-        Log.v(TAG, "Byte Buffer: mark=" + bb.mark());
-        Log.v(TAG, "Byte Buffer: remaining=" + bb.remaining());
-        Log.v(TAG, "Byte Buffer: arrayOffset=" + bb.arrayOffset());
-        Log.v(TAG, ">>>>>>>>>>");
-    }
-
-/* ********************************************************************************************** */
-
-    class Listener extends Thread {
+        private static final int STATE_READY = 0xE0;
+        private static final int STATE_STREAM = 0xEE;
+        private static final int STATE_ENDING = 0xEF;
 
         private final List<Callback> mCallbackList = new ArrayList<>();
         private final List<Handler> mHandlerList = new ArrayList<>();
-
-        ByteBuffer mBuffer = ByteBuffer.allocate(1028);
-        private volatile boolean mStop = false;
+        private final ByteBuffer mBuffer = ByteBuffer.allocate(MAX_BUFFER_BYTES);
 
         private String mFileName;
+        private FileOutputStream mFileOutputStream;
+        private int mState = STATE_READY;
 
         private Listener(){
             Log.v(TAG, "new Listener");
@@ -117,14 +111,13 @@ public class Filer {
         @Override
         public void run() {
             Log.v(TAG, ":Listener: running");
-            mStop = false;
 
             try {
                 ServerSocketChannel ssc = ServerSocketChannel.open();
                 ssc.socket().bind(new InetSocketAddress(SOCKET_FILE_PORT));
-                while (!mStop) { // Listener always alive !
+                while (true) { // Listener always alive !
                     SocketChannel sc = ssc.accept();
-                    Log.v(TAG, ":Listener: accept= " + sc.socket().toString());
+                    Log.v(TAG, ":Listener: accept= " + sc.toString());
                     int count;
                     do {
                         mBuffer.clear();
@@ -132,6 +125,10 @@ public class Filer {
                         if (count > 0) {
                             mBuffer.flip();
                             handleState(mBuffer);
+                        } else {
+                            Log.d(TAG, "Stream ending");
+                            mState = STATE_ENDING;
+                            //dispatch(mFileName);
                         }
                     } while (count > 0);
                     mBuffer.clear();
@@ -144,11 +141,61 @@ public class Filer {
         }
 
         private void handleState(ByteBuffer bb) {
-            int header  = bb.getInt(0);
-            if (header == HEADER_INFORMATION){
 
-            } else { // forward stream
-                // write file
+            switch (mState){
+                case STATE_READY:
+                    int header  = bb.getInt(0);
+                    if (header == FILE_HEADER){
+                        // TODO: parse more file information
+                        String fileName = new String(unwrapContent(bb));
+                        create(fileName);
+                        mState = STATE_STREAM;
+                    } else { // forward stream
+                        Log.d(TAG, "unknown header");
+                    }
+                    break;
+                case STATE_STREAM:
+                    append(bb);
+                    break;
+                default: break;
+            }
+        }
+
+        private byte[] unwrapContent(ByteBuffer buffer){
+            int length = buffer.limit() - BUFFER_HEADER_BYTES;
+            byte[] content = new byte[length];
+            buffer.position(BUFFER_HEADER_BYTES);
+            buffer.get(content);
+            return content;
+        }
+
+        private void create(String fileName){
+            // TODO: write to external SD card
+            try {
+                if (mPath != null) {
+                    File f = new File(mPath, mFileName);
+                    if(f.exists()){
+                        f.delete();
+                    }
+                    f.createNewFile();
+                    mFileOutputStream = new FileOutputStream(f, true);
+                } else if (mContext != null) {
+                    mFileOutputStream = mContext.openFileOutput(fileName, Context.MODE_APPEND);
+                } else {
+                    Log.d(TAG, "file is not configured !");
+                }
+            } catch (IOException e) {
+                //
+            }
+        }
+
+        private void append(ByteBuffer bb){
+            try {
+                if (mFileOutputStream != null) {
+                    mFileOutputStream.write(bb.array(), 0, bb.limit());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
 
