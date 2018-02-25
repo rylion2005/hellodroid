@@ -41,16 +41,14 @@ public class NioDemo extends AppCompatActivity {
         final Object mLock = new Object();
         int index = 0;
 
-        while (index++ < 255) {
+        while (index++ < 65535) {
             String str = "[" + index + "] Stream bytes";
             synchronized (mLock) {
-                bb.rewind();
-                Log.v(TAG, "BBB: " + bb.toString());
+                bb.clear();
+                //Log.d(TAG, "[" + index + "]");
                 bb.put(str.getBytes());
-                Log.v(TAG, "BBA: " + bb.toString());
                 bb.flip();
-                Log.v(TAG, "BBF: " + bb.toString());
-                //mStreamer.startStream(bb);
+                mStreamer.startStream(bb);
             }
         }
     }

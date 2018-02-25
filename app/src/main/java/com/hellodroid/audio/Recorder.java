@@ -26,6 +26,7 @@ public class Recorder{
 
     private int mWhere = -1;
     private final RecordRunnable mRecordRunnable = new RecordRunnable();
+    private final Thread mRecordThread = new Thread(mRecordRunnable);
 
 
 /* ********************************************************************************************** */
@@ -56,8 +57,9 @@ public class Recorder{
     }
 
     public void start(){
-        Thread t = new Thread(mRecordRunnable);
-        t.start();
+        if (!mRecordThread.isAlive()) {
+            mRecordThread.start();
+        }
     }
 
     public void stop(){
@@ -111,6 +113,11 @@ public class Recorder{
             Log.v(TAG, ":recording: running ......");
 
             prepareRecording();
+
+            if (mWhere == RECORD_TO_STREAM) {
+                mBuffer = ByteBuffer.allocate(mBufferSizeInBytes);
+            }
+
             byte[] buf = new byte[mBufferSizeInBytes];
             while (!mStopSignal) {  // thread running
                 int count = mRecord.read(buf, 0, mBufferSizeInBytes);
@@ -146,10 +153,7 @@ public class Recorder{
                         AUDIO_ENCODING,
                         mBufferSizeInBytes);
 
-                Log.v(TAG, "Record state: " + mRecord.getState());
                 mRecord.startRecording();
-
-                mBuffer = ByteBuffer.allocate(mBufferSizeInBytes);
             } catch (IllegalStateException|NullPointerException e) {
                 Log.v(TAG, "prepare exception");
                 e.printStackTrace();
@@ -161,11 +165,12 @@ public class Recorder{
 
             try{
                 fos.close();
-                mRecord.stop();
-                mRecord.release();
-            } catch (IllegalStateException|IOException|NullPointerException e){
-                // nothing
+            } catch (IOException|NullPointerException e){
+                //e.printStackTrace();
             }
+
+            mRecord.stop();
+            mRecord.release();
 
             fos = null;
             mStopSignal = true;
