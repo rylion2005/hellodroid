@@ -59,31 +59,11 @@ public class Messenger {
         bb.clear();
     }
 
-
-/* ********************************************************************************************** */
-
-    private void dumpThread(Thread t){
-        Log.v(TAG, " <<<<<<<<<< Thread >>>>>>>>>>");
-        Log.v(TAG, "Thread: " + t.toString());
-        Log.v(TAG, "ID: " + t.getId());
-        Log.v(TAG, "Name: " + t.getName());
-        Log.v(TAG, "Priority: " + t.getPriority());
-        Log.v(TAG, "State: " + t.getState().toString());
-        Log.v(TAG, "isAlive: " + t.isAlive());
-        Log.v(TAG, "isInterrupted: " + t.isInterrupted());
-        Log.v(TAG, " <<<<<<<<<<        >>>>>>>>>>");
-    }
-
-    private void dumpByteBuffer(ByteBuffer bb){
-        Log.v(TAG, ">>>>>>>>>>");
-        Log.v(TAG, "Byte Buffer: " + bb.toString());
-        Log.v(TAG, "Byte Buffer: capacity=" + bb.capacity());
-        Log.v(TAG, "Byte Buffer: limit=" + bb.limit());
-        Log.v(TAG, "Byte Buffer: position=" + bb.position());
-        Log.v(TAG, "Byte Buffer: mark=" + bb.mark());
-        Log.v(TAG, "Byte Buffer: remaining=" + bb.remaining());
-        Log.v(TAG, "Byte Buffer: arrayOffset=" + bb.arrayOffset());
-        Log.v(TAG, ">>>>>>>>>>");
+    public void sendBytes(byte[] bytes, int offset, int length){
+        ByteBuffer bb = Wrapper.wrap(Wrapper.HEAD_TAG_RAW_BYTES, bytes, offset, length);
+        mSender.flush(bb);
+        (new Thread(mSender)).start();
+        bb.clear();
     }
 
 /* ********************************************************************************************** */
@@ -93,7 +73,7 @@ public class Messenger {
         private final List<Callback> mCallbackList = new ArrayList<>();
         private final List<Handler> mHandlerList = new ArrayList<>();
 
-        ByteBuffer mBuffer = ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
+        ByteBuffer mBuffer = ByteBuffer.allocate(Wrapper.MAX_BUFFER_BYTES);
         private volatile boolean mStop = false;
 
         private Listener(){
@@ -143,12 +123,12 @@ public class Messenger {
             int header  = Wrapper.unwrapHeader(bb);
 
             switch (header) {
-                case Wrapper.BUFFER_TYPE_HEART_BEAT:
+                case Wrapper.HEAD_TAG_HEART_BEAT:
                     // discard here
                     Log.v(TAG, "HEART BEAT ...");
                     break;
 
-                case Wrapper.BUFFER_TYPE_TEXT:
+                case Wrapper.HEAD_TAG_TEXT:
                     Log.v(TAG, "TEXT ...");
                     dispatch(Wrapper.cutContent(bb));
                     break;
@@ -174,7 +154,6 @@ public class Messenger {
                 m.setData(b);
                 h.sendMessage(m);
             }
-
         }
     }
 
@@ -218,33 +197,26 @@ public class Messenger {
 /* ********************************************************************************************** */
 
     static class Wrapper{
-        private static final int BUFFER_HEADER_LENGTH = 4; // header
-        private static final int MESSAGE_CONTENT_LENGTH = 1024; // contents
-        private static final int MESSAGE_BUFFER_LENGTH = BUFFER_HEADER_LENGTH + MESSAGE_CONTENT_LENGTH;
+        private static final int HEADER_TAG_BYTES = 4; // header
+        private static final int CONTENT_BYTES = 1024; // contents
+        private static final int MAX_BUFFER_BYTES = 1028;
 
-        private static final int BUFFER_TYPE_HEART_BEAT = 0xFF00;    // header only
-        private static final int BUFFER_TYPE_TEXT = 0xFFA0;          // header + contents
-        //private static final int BUFFER_TYPE_STREAM_FILE = 0xFFBF;   // header + contents
-        //private static final int BUFFER_TYPE_STREAM_BYTE = 0xFFCF;   // header only
-        private static final int BUFFER_TYPE_RAW_BYTES = 0xFFEF;       // header + contents
+        private static final int HEAD_TAG_HEART_BEAT = 0xFF00;    // header + user ID information
+        private static final int HEAD_TAG_TEXT = 0xFFA0;          // header + contents
+        private static final int HEAD_TAG_RAW_BYTES = 0xFFEF;     // header + contents
 
 
-        private static ByteBuffer wrap(int type, byte[] bytes, int length){
+        private static ByteBuffer wrap(int tag, byte[] bytes, int offset, int length){
             ByteBuffer bb;
 
-            if (length > MESSAGE_CONTENT_LENGTH) {
-                Log.v(TAG, "byte error");
+            if (length > CONTENT_BYTES) {
+                Log.v(TAG, "length error");
                 return null;
             }
 
-            bb = ByteBuffer.allocate(length + BUFFER_HEADER_LENGTH);
-            if (type != BUFFER_TYPE_RAW_BYTES){
-                bb.putInt(type);
-            }
-
-            if (bytes != null) { // allow content has nothing
-                bb.put(bytes);
-            }
+            bb = ByteBuffer.allocate(MAX_BUFFER_BYTES);
+            bb.putInt(tag);
+            bb.put(bytes, offset, length);
             bb.flip();
 
             return bb;
@@ -255,15 +227,15 @@ public class Messenger {
                 return null;
             }
 
-            ByteBuffer bb = ByteBuffer.allocate(Wrapper.MESSAGE_BUFFER_LENGTH);
-            bb.putInt(BUFFER_TYPE_TEXT);
+            ByteBuffer bb = ByteBuffer.allocate(Wrapper.MAX_BUFFER_BYTES);
+            bb.putInt(HEAD_TAG_TEXT);
             bb.put(text.getBytes());
             bb.flip();
             return bb;
         }
 
         private static ByteBuffer wrap(int value){
-            ByteBuffer bb = ByteBuffer.allocate(Wrapper.BUFFER_HEADER_LENGTH);
+            ByteBuffer bb = ByteBuffer.allocate(Wrapper.HEADER_TAG_BYTES);
             bb.putInt(value);
             bb.flip();
             return bb;
@@ -278,15 +250,15 @@ public class Messenger {
         }
 
         private static byte[] unwrapContentBytes(ByteBuffer buffer){
-            int length = buffer.limit() - BUFFER_HEADER_LENGTH;
+            int length = buffer.limit() - HEADER_TAG_BYTES;
             byte[] content = new byte[length];
-            buffer.position(BUFFER_HEADER_LENGTH);
+            buffer.position(HEADER_TAG_BYTES);
             buffer.get(content);
             return content;
         }
 
         private static ByteBuffer cutContent(ByteBuffer buffer){
-            int length = buffer.limit() - BUFFER_HEADER_LENGTH;
+            int length = buffer.limit() - HEADER_TAG_BYTES;
             ByteBuffer bb = ByteBuffer.allocate(length);
             bb.put(unwrapContentBytes(buffer));
             bb.flip();
