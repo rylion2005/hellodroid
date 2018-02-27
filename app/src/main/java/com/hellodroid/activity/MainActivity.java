@@ -7,6 +7,7 @@ import android.view.View;
 
 import com.hellodroid.R;
 import com.hellodroid.audio.AudioDemo;
+import com.hellodroid.file.FileDemo;
 import com.hellodroid.nio.NioDemo;
 import com.hellodroid.talkie.TalkieActivity;
 import com.hellodroid.thread.ThreadDemo;
@@ -52,6 +53,10 @@ public class MainActivity extends BaseActivity {
 
     public void goThread(View v) {
         startActivity(new Intent(this, ThreadDemo.class));
+    }
+
+    public void goFile(View v) {
+        startActivity(new Intent(this, FileDemo.class));
     }
 
 

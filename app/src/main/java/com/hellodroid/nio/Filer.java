@@ -55,7 +55,7 @@ public class Filer {
         return mInstance;
     }
 
-    public void register(Callback cb, Handler h){
+    public void register(IncomingCallback cb, Handler h){
         mListener.register(cb, h);
     }
 
@@ -100,13 +100,18 @@ public class Filer {
 
         //TODO: preprocess file information
 
-        File f = new File(path, fileName);
         try {
+            File f = new File(path, fileName);
+            if (f.exists()){
+                Log.v(TAG, "File existed");
+            } else {
+                Log.e(TAG, "File not existed");
+            }
             fis = new FileInputStream(f);
             mSender.configure(fis);
             mSender.configure(fileName);
             if (!mSenderThread.isAlive()) {
-                mSenderThread.start();
+            //    mSenderThread.start();
             }
         } catch (FileNotFoundException|SecurityException e) {
             e.printStackTrace();
@@ -121,7 +126,7 @@ public class Filer {
         private static final int STATE_STREAM = 0xEE;
         private static final int STATE_ENDING = 0xEF;
 
-        private final List<Callback> mCallbackList = new ArrayList<>();
+        private final List<IncomingCallback> mCallbackList = new ArrayList<>();
         private final List<Handler> mHandlerList = new ArrayList<>();
         private final ByteBuffer mBuffer = ByteBuffer.allocate(MAX_BUFFER_BYTES);
 
@@ -135,7 +140,7 @@ public class Filer {
             Log.v(TAG, "new Listener");
         }
 
-        private void register(Callback cb, Handler h){
+        private void register(IncomingCallback cb, Handler h){
             if (cb != null){
                 mCallbackList.add(cb);
             }
@@ -246,8 +251,8 @@ public class Filer {
 
         private void dispatch(String name){
             Log.v(TAG, "dispatch: callback=" + mCallbackList.size());
-            for (Callback cb : mCallbackList){
-                cb.onFileIncoming(name);
+            for (IncomingCallback cb : mCallbackList){
+                cb.onIncomingFile(name);
             }
 
             Log.v(TAG, "dispatch: handler=" + mHandlerList.size());
@@ -333,7 +338,12 @@ public class Filer {
 
 /* ********************************************************************************************** */
 
-    public interface Callback {
-        void onFileIncoming(String name);
+    public interface IncomingCallback {
+        void onIncomingFile(String name);
+    }
+
+    public interface SendCallback{
+        void onSuccess();
+        void onFailure();
     }
 }
