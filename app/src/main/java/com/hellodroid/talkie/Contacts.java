@@ -18,24 +18,34 @@ import java.util.UUID;
 class Contacts {
     private static final String TAG = "Contacts";
 
-    private User myself;
+	private static final String[] KEYS = {
+		"uuid","imei","meid","serialno","wfmac","btmac","name","nickname","localip","inetip","status"
+	};
+
+	private static final String CONTACT_FILE = "contacts.db";
+
+	private static Jsoner mJsoner;
+
+    private final User myself = Myself.getMyself();
     private final List<User> mUserList = new ArrayList<>();
 
-    public Contacts(){}
+
+    public Contacts(Context context){
+		if (mJsoner == null){
+        	mJsoner = new Jsoner(context, CONTACT_FILE, KEYS);
+			mUserList = mJsoner.read();
+		}
+	}
 
     public User getMyself(){
         return myself;
     }
 
-    public User newUser(){
-        return new User();
+    public void add(User user){
+        mUserList.add(user);
     }
 
-    public void add(User profile){
-        mUserList.add(profile);
-    }
-
-    public void update(int index, User profile){
+    public void update(int index, User user){
         //mUserList.get(index).copy(profile);
     }
 
@@ -48,9 +58,5 @@ class Contacts {
             //    iterator.remove();
             //}
         }
-    }
-
-    private void genMyself(){
-        // Gen uuid
     }
 }
