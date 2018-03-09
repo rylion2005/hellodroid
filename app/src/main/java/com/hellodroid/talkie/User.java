@@ -10,15 +10,17 @@ package com.hellodroid.talkie;
 **     
 */
 public class User {
-    private String uuid;
-    private int imei0;
-    private int imei1;
-    private int meid;
-    private int btmac;
-    private int wlanmac;
-    private int serialno;
+    private String uuid;    // auto generate for devices
+    private String imei;    // gsm/tdscdma/wcdma
+    private String meid;    // cdma
+    private String serialno;
+    private String wfmacaddress;
+    private String btmacaddress;
+
+	// show to user
     private String name;
     private String nickName;
+    private int status;
     private String localip;
     private String inetip;
 }
