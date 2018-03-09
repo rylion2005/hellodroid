@@ -1,5 +1,9 @@
 package com.hellodroid.talkie;
 
+import android.content.Context;
+
+import com.google.gson.Gson;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -17,24 +21,15 @@ import java.util.UUID;
 /* ********************************************************************************************** */
 class Contacts {
     private static final String TAG = "Contacts";
-
-	private static final String[] KEYS = {
-		"uuid","imei","meid","serialno","wfmac","btmac","name","nickname","localip","inetip","status"
-	};
-
 	private static final String CONTACT_FILE = "contacts.db";
-
-	private static Jsoner mJsoner;
 
     private final User myself = Myself.getMyself();
     private final List<User> mUserList = new ArrayList<>();
 
+    private final Gson mGson = new Gson();
+
 
     public Contacts(Context context){
-		if (mJsoner == null){
-        	mJsoner = new Jsoner(context, CONTACT_FILE, KEYS);
-			mUserList = mJsoner.read();
-		}
 	}
 
     public User getMyself(){

@@ -10,6 +10,10 @@ package com.hellodroid.talkie;
 **     
 */
 
+import android.telephony.TelephonyManager;
+
+import com.google.gson.Gson;
+
 import java.util.UUID;
 
 /*
@@ -18,30 +22,33 @@ import java.util.UUID;
 */
 public class Myself {
 	private static User myself;
+
 	private boolean mInitCompleted = false;
 	private TelephonyManager mTelephony;
+
+	private final Gson mGson = new Gson();
 
 	private void Myself(){
 		init();
 	}
 
-	public Myself getMyself(){
+	public static User getMyself(){
 		if (myself == null){
-			myself = new Myself();
+			myself = new User();
 		}
 		return myself;
 	}
 
-	private init(){
-
+	private void init(){
+        Gson gson = new Gson();
 		 myself.setUuid(UUID.randomUUID().toString());
 	}
 
 	
 	class IdentityRunnable implements Runnable {
-        @override
-		public void run(){
-			
+		@Override
+		public void run() {
+
 		}
-    }
+	}
 }
