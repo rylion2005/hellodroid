@@ -49,7 +49,7 @@ public class Identity {
 
     public Identity(Context context){
 		mContext = context;
-		init();
+        update();
 	}
 
 	private void register(Callback cb){
@@ -58,7 +58,7 @@ public class Identity {
 		}
 	}
 
-	private void init(){
+	public void update(){
 		uuid = Utils.getUuid(mContext, UUID_FILE);
 		localip = Utils.getLocalAddress();
 		requestInetAddress();

@@ -146,19 +146,7 @@ public class BaseActivity extends AppCompatActivity {
 
 
 /* ********************************************************************************************** */
-/*
-    public class NetworkStatusCallback implements MyNetworkReceiver.CallBack {
-        @Override
-        public void onWifiConnectivity(boolean connected) {
 
-        }
-
-        @Override
-        public void onMobileConnectivity(boolean connected) {
-
-        }
-    }
-*/
     public class MyServiceConnection implements ServiceConnection{
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {

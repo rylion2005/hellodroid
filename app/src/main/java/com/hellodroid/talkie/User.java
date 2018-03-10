@@ -31,8 +31,11 @@ public class User {
 
     // convert user to json string
     public String toJsonString(){
-        Gson gson = new Gson();
-        return gson.toJson(this);
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.uuid);
+        sb.append(",");
+        sb.append(this.localip);
+        return sb.toString();
     }
 
     public String getUuid() {

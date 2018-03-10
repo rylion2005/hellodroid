@@ -24,7 +24,7 @@ import java.util.List;
 **
 ** USAGE
 **
-**  1. MyNetworkReceiver receiver  = getInstance(this)
+**  1. MyNetworkReceiver receiver  = MyNetworkReceiver.getInstance(this)
 **  2. receiver.register() / receiver.unregister()
 **  3. MyNetworkReceiver.Callback cb = new MyNetworkReceiver.Callback(){...}
 **  4. receiver.registerCallBack(cb)
@@ -32,7 +32,7 @@ import java.util.List;
 ** *************************************************************************************************
 */
 public class MyNetworkReceiver extends BroadcastReceiver {
-    private static final String TAG = "MyReceiver";
+    private static final String TAG = "MyNetworkReceiver";
     private static MyNetworkReceiver mInstance;
 
     private Context mContext;
@@ -53,7 +53,7 @@ public class MyNetworkReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "onReceive: " + intent.toString());
-        dumpConnectivity(intent);
+        //dumpConnectivity(intent);
 
         if (intent.getAction().equals(ConnectivityManager.CONNECTIVITY_ACTION)){
 
@@ -95,6 +95,11 @@ public class MyNetworkReceiver extends BroadcastReceiver {
         mContext.unregisterReceiver(this);
     }
 
+    private void notifyStatusChanged(){
+        for (CallBack cb : mCallBackList) {
+            cb.onNetworkStatusChanged();
+        }
+    }
 
     private void dumpConnectivity(Intent intent){
         Log.d(TAG, "> > > > > > > > > > > > > > > > > > > > > > > > > > > > > >");
@@ -151,7 +156,8 @@ public class MyNetworkReceiver extends BroadcastReceiver {
 ** *************************************************************************************************
 */
     public interface CallBack{
-        abstract public void onWifiConnectivity(boolean connected);
-        abstract public void onMobileConnectivity(boolean connected);
+        void onNetworkStatusChanged();
+        void onWifiConnectivity(boolean connected);
+        void onMobileConnectivity(boolean connected);
     }
 }

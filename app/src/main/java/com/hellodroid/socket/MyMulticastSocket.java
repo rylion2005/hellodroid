@@ -1,8 +1,6 @@
 package com.hellodroid.socket;
 
 
-import com.hellodroid.talkie.Myself;
-
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
