@@ -1,6 +1,10 @@
-package com.hellodroid.lan;
+package com.hellodroid.identity;
+
+import android.content.Context;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -12,6 +16,7 @@ import java.net.SocketException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Enumeration;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,9 +29,9 @@ import java.util.regex.Pattern;
 **   yl7 | 18-2-22: Created
 **     
 */
-public final class MyAddress {
+public final class Utils {
 
-    public MyAddress(){}
+    public Utils(){}
 
     public static String getLocalAddress() {
 
@@ -93,5 +98,33 @@ public final class MyAddress {
             }
         }
         return ipLine;
+    }
+
+	public static String getUuid(Context context, String uuidFile){
+		String id = null;
+		try {
+			FileInputStream fis = context.openFileInput(uuidFile);
+			int counts = fis.available();
+			if( counts > 0){
+                byte[] bytes = new byte[counts];
+				int read = fis.read(bytes, 0, counts);
+				id = new String(bytes);
+			}
+            fis.close();
+        } catch (IOException e) {
+
+        } 
+
+		if (id == null) {
+			try {
+		        id = UUID.randomUUID().toString();
+				FileOutputStream fos = context.openFileOutput(uuidFile, Context.MODE_PRIVATE);
+				fos.write(id.getBytes(), 0, id.length());
+				fos.close();
+		    } catch (IOException e) {
+				id = null;
+		    } 
+		}
+        return id;
     }
 }

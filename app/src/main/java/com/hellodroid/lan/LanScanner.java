@@ -9,6 +9,9 @@ package com.hellodroid.lan;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+
+import com.hellodroid.identity.Utils;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -37,19 +40,12 @@ import java.util.regex.Pattern;
 **
 ** ********************************************************************************
 */
-public class LanScanner extends Handler {
+public class LanScanner {
     private static final String TAG = "LanScanner";
 
-    private static final int SOCKET_PORT = 8866;
-    private static final int MESSAGE_UPDATE_ADDRESSES = 0xAA;
     private static final int SCAN_PERIOD = 10 * 1000;
     private static LanScanner mInstance;
-    private static final List<Callback> mCallbackList = new ArrayList<>();
-
     private String myLocalAddress;
-    private String myNetworkAddress;
-
-    final List<String> mConnections = new ArrayList<>();
 
 
 /* ********************************************************************************************** */
@@ -66,51 +62,11 @@ public class LanScanner extends Handler {
         return mInstance;
     }
 
-    public void register(Callback cb){
-        if (cb != null){
-            mCallbackList.add(cb);
-        }
-    }
-
     public List<String> getNeighbours(){
-        if (mConnections.isEmpty()){
-            return readArp();
-        } else {
-            return mConnections;
-        }
+        return getIpsFromArp();
     }
 
-    public String getMyLocalAddress(){
-        return myLocalAddress;
-    }
-
-    public String getMyInternetAddress(){
-        return myNetworkAddress;
-    }
-
-    @Override
-    public void handleMessage(Message msg) {
-        Log.v(TAG, "Message: " + msg.what);
-        switch (msg.what) {
-            case MESSAGE_UPDATE_ADDRESSES:
-                Log.v(TAG, "Callback List: " + mCallbackList.size());
-                for (Callback cb : mCallbackList){
-                    cb.onUpdateNeighbors(getNeighbours());
-                    cb.onConnectedNeighbors(mConnections);
-                    cb.onUpdateLocalAddress(myLocalAddress);
-                    cb.onUpdateInternetAddress(myNetworkAddress);
-                }
-                break;
-
-            default:
-                break;
-        }
-    }
-
-
-/* ********************************************************************************************** */
-
-    private List<String> readArp(){
+    public static List<String> getIpsFromArp(){
         List<String> ipList = new ArrayList<>();
 
         try {
@@ -139,22 +95,11 @@ public class LanScanner extends Handler {
 
 
     class Scanning extends TimerTask{
-        boolean notifySent = false;
 
         @Override
         public void run() {
             Log.v(TAG, ":Scanner: timer running");
-
-            notifySent = !notifySent;
-            myLocalAddress = MyAddress.getLocalAddress();
-            myNetworkAddress = MyAddress.getInternetAddress();
-
-            if (!notifySent) {
-                discovery(myLocalAddress);
-            } else {
-                tryConnect();
-                sendEmptyMessage(MESSAGE_UPDATE_ADDRESSES);
-            }
+            discovery(myLocalAddress);
         }
 
         private void discovery(String ip){
@@ -192,33 +137,5 @@ public class LanScanner extends Handler {
             }
             return matcher.start();
         }
-
-        private void tryConnect(){
-            synchronized (mConnections){
-                mConnections.clear();
-                List<String> neighbors = readArp();
-                for (String ip : neighbors) {
-                    try {
-                        SocketChannel sc = SocketChannel.open();
-                        boolean connected = sc.connect(new InetSocketAddress(ip, SOCKET_PORT));
-                        if (connected) {
-                            Log.d(TAG, ":HB: " + sc.toString());
-                            //TODO: can do more communications
-                            mConnections.add(ip);
-                        }
-                        sc.close();
-                    } catch (IOException e) {
-                        //
-                    }
-                }
-            }
-        }
-    }
-
-    public interface Callback {
-        void onUpdateNeighbors(List<String> neighbors);
-        void onConnectedNeighbors(List<String> neighbors);
-        void onUpdateLocalAddress(String address);
-        void onUpdateInternetAddress(String address);
     }
 }

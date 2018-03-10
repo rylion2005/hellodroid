@@ -34,7 +34,6 @@ public class TalkieActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         Log.v(TAG, "onCreate");
         setContentView(R.layout.activity_utalkie);
-        mLanScanner.register(new AddressCallback());
         initViews();
     }
 
@@ -81,10 +80,10 @@ public class TalkieActivity extends BaseActivity {
         mSessionsFragment = SessionsFragment.newInstance();
         mContactsFragment = ContactsFragment.newInstance();
         mProfileFragment = ProfileFragment.newInstance();
-        mContactsFragment.updateContacts(mLanScanner.getNeighbours());
+        //mContactsFragment.updateContacts(mLanScanner.getNeighbours());
         //mContactsFragment.refreshContactViews();
-        mProfileFragment.updateLocalAddress(mLanScanner.getMyLocalAddress());
-        mProfileFragment.updateInternetAddress(mLanScanner.getMyInternetAddress());
+        //mProfileFragment.updateLocalAddress(mLanScanner.getMyLocalAddress());
+        //mProfileFragment.updateInternetAddress(mLanScanner.getMyInternetAddress());
         //mProfileFragment.refreshAddressViews();
         addFragment(mSessionsFragment, "SessionsFragment");
     }
@@ -105,32 +104,6 @@ public class TalkieActivity extends BaseActivity {
 
 
 /* ********************************************************************************************** */
-
-    class AddressCallback implements LanScanner.Callback{
-        @Override
-        public void onUpdateNeighbors(List<String> neighbors) {
-            //mContactsFragment.updateContacts(neighbors);
-            //mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
-        }
-
-        @Override
-        public void onUpdateLocalAddress(String address) {
-            mProfileFragment.updateLocalAddress(address);
-            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
-        }
-
-        @Override
-        public void onUpdateInternetAddress(String address) {
-            mProfileFragment.updateInternetAddress(address);
-            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
-        }
-
-        @Override
-        public void onConnectedNeighbors(List<String> connectedList) {
-            mContactsFragment.updateContacts(connectedList);
-            mHandler.sendEmptyMessage(MESSAGE_ADDRESS_UPDATING);
-        }
-    }
 
     class MyHandler extends Handler{
 
